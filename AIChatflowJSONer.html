@@ -1,0 +1,2610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YiziPaper AI对话模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="model-config.js"></script>
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'klein-blue': '#002FA7',
+                        'klein-light': '#3257C5',
+                        'hermes-orange': '#F3641E',
+                        'hermes-light': '#FF8A4C',
+                        'glass-bg': 'rgba(255, 255, 255, 0.15)',
+                        'glass-bg-dark': 'rgba(17, 24, 39, 0.7)',
+                        'glass-border': 'rgba(255, 255, 255, 0.2)',
+                        'glass-border-dark': 'rgba(255, 255, 255, 0.1)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    backdropBlur: {
+                        'xs': '2px',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.9);
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+                transition: all 0.3s ease;
+            }
+            .glass-effect:hover {
+                background: rgba(255, 255, 255, 0.95);
+                border-color: rgba(255, 255, 255, 0.7);
+                box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.2);
+            }
+            .glass-effect-dark {
+                background: theme('colors.glass-bg-dark');
+                border: 1px solid theme('colors.glass-border-dark');
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+                transition: all 0.3s ease;
+            }
+            .glass-effect-dark:hover {
+                background: rgba(17, 24, 39, 0.8);
+                border-color: rgba(255, 255, 255, 0.15);
+                box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .liquid-transition {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .input-focus {
+                @apply focus:border-klein-blue focus:ring-2 focus:ring-klein-blue/20 focus:outline-none;
+            }
+            .dark .input-focus {
+                @apply focus:border-hermes-orange focus:ring-2 focus:ring-hermes-orange/20;
+            }
+            /* 统一输入元素样式 */
+            .glass-input {
+                background-color: rgba(206, 226, 255, 0.3);
+                backdrop-filter: blur(16px);
+                border: 1px solid rgba(197, 197, 255, 0.5);
+                border-radius: 0.5rem;
+                padding: 0.5rem;
+                font-size: 0.875rem;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+                width: 100%;
+                color: #1e293b;
+            }
+            /* 单行输入元素样式（input, select） */
+            .glass-input:not(textarea) {
+                height: 2.25rem;
+                display: inline-flex;
+                align-items: center;
+            }
+            /* textarea特殊处理 */
+            .glass-input:is(textarea) {
+                min-height: 80px;
+                resize: vertical;
+                display: block;
+                align-items: flex-start;
+            }
+            .glass-input:hover {
+                background-color: rgba(255, 255, 255, 0.5);
+                border-color: rgba(255, 255, 255, 0.7);
+                color: #002FA7;
+                box-shadow: 0 10px 15px -3px rgba(171, 172, 255, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .glass-input:focus {
+                outline: none;
+                border-color: #002FA7;
+                box-shadow: 0 10px 15px -3px rgba(171, 172, 255, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(0, 47, 167, 0.2);
+            }
+            /* Dark主题glass-input */
+            .dark .glass-input {
+                background-color: rgba(51, 65, 85, 0.6);
+                border-color: rgba(71, 85, 105, 0.7);
+                color: #f8fafc;
+            }
+            .dark .glass-input:hover {
+                background-color: rgba(71, 85, 105, 0.8);
+                border-color: rgba(100, 116, 139, 0.9);
+                color: #F3641E;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .dark .glass-input:focus {
+                border-color: #F3641E;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(243, 100, 30, 0.2);
+            }
+            /* 液态玻璃风格按钮 - 统一设计 */
+            .glass-btn {
+                background-color: rgba(206, 226, 255, 0.3);
+                backdrop-filter: blur(16px);
+                border: 1px solid rgba(197, 197, 255, 0.5);
+                border-radius: 0.5rem;
+                padding: 0.625rem 1rem;
+                font-size: 0.875rem;
+                font-weight: 500;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+                height: 2.25rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            /* 默认按钮文字颜色 */
+            .glass-btn:not(.mode-btn) {
+                color: #1e293b;
+            }
+            
+            .dark .glass-btn:not(.mode-btn) {
+                color: #f8fafc;
+            }
+            
+            /* 模式切换按钮特殊样式 */
+            .mode-btn {
+                color: #64748b;
+            }
+            
+            .dark .mode-btn {
+                color: #cbd5e1;
+            }
+            
+            /* 当滑动指示器位于编辑模式时，编辑模式按钮文字为白色 */
+            #mode-slider:not([style*="translateX(100%)"]) ~ #edit-mode-btn,
+            /* 当滑动指示器位于预览模式时，预览模式按钮文字为白色 */
+            #mode-slider[style*="translateX(100%)"] ~ #preview-mode-btn {
+                color: white !important;
+            }
+            
+            /* 模式切换按钮hover效果 */
+            .mode-btn:hover {
+                color: #002FA7 !important;
+            }
+            
+            .dark .mode-btn:hover {
+                color: #F3641E !important;
+            }
+            
+            /* 选中状态的模式切换按钮hover效果 */
+            #mode-slider:not([style*="translateX(100%)"]) ~ #edit-mode-btn:hover,
+            #mode-slider[style*="translateX(100%)"] ~ #preview-mode-btn:hover {
+                color: white !important;
+            }
+            
+            .dark .glass-btn {
+                background-color: rgba(51, 65, 85, 0.6);
+                border-color: rgba(71, 85, 105, 0.7);
+                color: #f8fafc;
+            }
+            
+            .glass-btn:hover {
+                background-color: rgba(255, 255, 255, 0.5);
+                border-color: rgba(255, 255, 255, 0.7);
+                color: #002FA7;
+                box-shadow: 0 10px 15px -3px rgba(171, 172, 255, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                transform: scale(1.05) translateY(-0.125rem);
+            }
+            
+            .dark .glass-btn:hover {
+                background-color: rgba(71, 85, 105, 0.8);
+                border-color: rgba(100, 116, 139, 0.9);
+                color: #F3641E;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                transform: scale(1.05) translateY(-0.125rem);
+            }
+            /* 按钮悬停指引效果 */
+            .glass-btn-tooltip {
+                @apply relative group;
+            }
+            .glass-btn-tooltip::after {
+                @apply content-[''] absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs rounded-lg opacity-0 invisible transition-all duration-300 pointer-events-none backdrop-blur-sm;
+            }
+            .glass-btn-tooltip:hover::after {
+                @apply opacity-100 visible mb-3;
+            }
+            /* 统一按钮悬停效果 */
+            .btn-hover {
+                @apply hover:scale-105 hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5;
+            }
+            .avatar-border {
+                border: 2px solid rgba(255, 255, 255, 0.8);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            }
+            .avatar-animation {
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+            }
+            .avatar-animation:hover {
+                transform: translateY(-3px) scale(1.05);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            }
+            /* 头像悬停提示 */
+            .flex-shrink-0.relative:hover > div:last-child {
+                opacity: 1;
+                z-index: 1000;
+            }
+            /* 自定义滚动条样式 - 自动隐藏 */
+            .scrollbar-hide {
+                /* 默认隐藏滚动条 */
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+                margin-right: -6px;
+                padding-right: 10px;
+                transition: all 0.2s ease;
+            }
+            /* WebKit浏览器默认隐藏 */
+            .scrollbar-hide::-webkit-scrollbar {
+                width: 0;
+                height: 0;
+                transition: width 0.2s ease, height 0.2s ease;
+            }
+            /* WebKit浏览器hover显示 */
+            .scrollbar-hide:hover::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            /* 打字机光标动画 */
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0; }
+            }
+            .typewriter-cursor-blink {
+                animation: blink 1s infinite;
+            }
+            /* 滚动条轨道样式 */
+            .scrollbar-hide::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            /* 滚动条滑块样式 */
+            .scrollbar-hide::-webkit-scrollbar-thumb {
+                background-color: rgba(156, 163, 175, 0.5);
+                border-radius: 3px;
+                transition: background-color 0.2s ease;
+            }
+            /* 滚动条滑块hover样式 */
+            .scrollbar-hide::-webkit-scrollbar-thumb:hover {
+                background-color: rgba(156, 163, 175, 0.7);
+            }
+            /* Dark主题滚动条滑块样式 */
+            .dark .scrollbar-hide::-webkit-scrollbar-thumb {
+                background-color: rgba(243, 100, 30, 0.5);
+            }
+            /* Dark主题滚动条滑块hover样式 */
+            .dark .scrollbar-hide::-webkit-scrollbar-thumb:hover {
+                background-color: rgba(243, 100, 30, 0.7);
+            }
+            /* Firefox浏览器默认隐藏 */
+            .scrollbar-hide {
+                scrollbar-width: thin;
+                scrollbar-color: transparent transparent;
+                transition: scrollbar-color 0.2s ease;
+            }
+            /* Firefox浏览器hover显示 */
+            .scrollbar-hide:hover {
+                scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+            }
+            /* Dark主题Firefox滚动条hover显示 */
+            .dark .scrollbar-hide:hover {
+                scrollbar-color: rgba(243, 100, 30, 0.5) transparent;
+            }
+            /* 强制隐藏横向滚动条 */
+            #conversation-container {
+                overflow-x: hidden;
+            }
+            .scrollbar-hide {
+                overflow-x: hidden;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                height: 0;
+            }
+            .scrollbar-hide:hover::-webkit-scrollbar {
+                height: 0;
+            }
+            /* 微信风格气泡 - 修复版 */
+            .wechat-bubble-user {
+                @apply bg-green-50 dark:bg-green-900/15 text-slate-800 dark:text-white rounded-2xl rounded-br-none p-3 max-w-[85%] shadow-md;
+            }
+            .wechat-bubble-assistant {
+                @apply bg-yellow-50 dark:bg-yellow-900/15 text-slate-800 dark:text-white rounded-2xl rounded-bl-none p-3 max-w-[85%] shadow-md border border-slate-200 dark:border-slate-600;
+            }
+            .wechat-bubble-system {
+                @apply bg-pink-50 dark:bg-pink-900/15 text-slate-600 dark:text-slate-300 rounded-xl p-3 max-w-[80%] shadow-sm text-sm;
+            }
+            /* 对话文本框展开效果 */
+            .content-input {
+                transition: all 0.3s ease;
+                resize: none;
+                overflow-y: auto;
+                max-height: 500px;
+            }
+            .content-input:focus {
+                min-height: 200px !important;
+                max-height: 500px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                transform: scale(1.02);
+                background-color: white !important;
+            }
+            .dark .content-input:focus {
+                background-color: #1f2937 !important;
+            }
+            /* 删除按钮默认隐藏，hover时显示 */
+            .delete-turn {
+                opacity: 0;
+                transition: all 0.2s ease;
+                background-color: rgba(206, 226, 255, 0.3);
+                backdrop-filter: blur(16px);
+                border: 1px solid rgba(197, 197, 255, 0.5);
+                border-radius: 0.5rem;
+                padding: 0.5rem;
+                font-size: 0.75rem;
+                font-weight: 500;
+                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+                height: 2rem;
+                width: 2rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: #1e293b;
+            }
+            .conversation-turn:hover .delete-turn {
+                opacity: 1;
+            }
+            /* 删除按钮hover效果 */
+            .delete-turn:hover {
+                background-color: rgba(255, 255, 255, 0.5);
+                border-color: rgba(255, 255, 255, 0.7);
+                color: #002FA7;
+                box-shadow: 0 10px 15px -3px rgba(171, 172, 255, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                transform: scale(1.05) translateY(-0.125rem);
+            }
+            /* Dark主题删除按钮 */
+            .dark .delete-turn {
+                background-color: rgba(51, 65, 85, 0.6);
+                border-color: rgba(71, 85, 105, 0.7);
+                color: #f8fafc;
+            }
+            .dark .delete-turn:hover {
+                background-color: rgba(71, 85, 105, 0.8);
+                border-color: rgba(100, 116, 139, 0.9);
+                color: #F3641E;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                transform: scale(1.05) translateY(-0.125rem);
+            }
+            /* 删除按钮提示文字 */
+            .delete-turn + div {
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+            .delete-turn:hover + div {
+                opacity: 1;
+            }
+            /* 问号提示文字 */
+            .cursor-help > div {
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+            .cursor-help:hover > div {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 liquid-transition p-4 md:p-6">
+    <!-- 背景装饰元素 -->
+    <div class="fixed -top-40 -left-40 w-96 h-96 bg-klein-blue/10 rounded-full blur-3xl dark:bg-klein-blue/20"></div>
+    <div class="fixed top-1/3 -right-20 w-80 h-80 bg-klein-light/10 rounded-full blur-3xl dark:bg-klein-light/20"></div>
+    <div class="fixed bottom-0 left-1/4 w-72 h-72 bg-klein-blue/5 rounded-full blur-3xl dark:bg-klein-blue/10"></div>
+    
+    <div class="max-w-7xl mx-auto relative z-10">
+        <!-- 头部区域 -->
+        <header class="glass-effect dark:glass-effect-dark rounded-2xl p-5 mb-6 liquid-transition">
+            <div class="flex justify-between items-center">
+                <div class="flex-1 text-center">
+                    <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-slate-800 dark:text-white text-shadow flex items-center justify-center">
+                        <i class="fa fa-comments-o text-klein-blue dark:text-hermes-orange mr-3"></i>
+                        YiziPaper AI对话模拟器
+                    </h1>
+                </div>
+                <button id="theme-toggle" class="p-3 rounded-lg glass-btn text-slate-700 dark:text-slate-200">
+                    <i class="fa fa-moon-o dark:hidden"></i>
+                    <i class="fa fa-sun-o hidden dark:inline-block"></i>
+                </button>
+            </div>
+            <p class="mt-2 text-center flex flex-wrap justify-center gap-2">
+                <span class="bg-klein-blue/10 dark:bg-hermes-orange/20 text-klein-blue dark:text-hermes-light px-3 py-1 rounded-full text-sm font-medium">创建模拟对话</span>
+                <span class="bg-klein-blue/10 dark:bg-hermes-orange/20 text-klein-blue dark:text-hermes-light px-3 py-1 rounded-full text-sm font-medium">生成结构化JSON数据</span>
+                <span class="bg-klein-blue/10 dark:bg-hermes-orange/20 text-klein-blue dark:text-hermes-light px-3 py-1 rounded-full text-sm font-medium">AI实时输出</span>
+                <span class="bg-klein-blue/10 dark:bg-hermes-orange/20 text-klein-blue dark:text-hermes-light px-3 py-1 rounded-full text-sm font-medium">支持多模型自定义</span>
+            </p>
+        </header>
+        
+        <!-- 左右分栏布局 -->
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- 左侧：对话编辑区域 -->
+            <div class="lg:w-1/2 space-y-6">
+                <!-- 主内容区域 -->
+                <main class="glass-effect dark:glass-effect-dark rounded-2xl p-5 md:p-6 liquid-transition">
+                    <div id="conversation-container" class="space-y-4 max-h-[70vh] overflow-y-auto pr-4 pb-4 pl-4 scrollbar-hide relative">
+                        <!-- 对话条目将通过JS动态添加 -->
+                    </div>
+                    
+                    <div class="flex justify-center gap-4 mt-8">
+                <button id="add-turn" class="flex items-center gap-2 px-5 py-2.5 glass-btn">
+                    <i class="fa fa-plus"></i>
+                    <span>添加对话轮次</span>
+                </button>
+                <button id="import-conversation" class="flex items-center gap-2 px-4 py-2 glass-btn">
+                    <i class="fa fa-upload"></i>
+                    <span>导入对话</span>
+                </button>
+                <button id="clear-all" class="flex items-center gap-2 px-4 py-2 glass-btn">
+                    <i class="fa fa-trash-o"></i>
+                    <span>清空所有对话</span>
+                </button>
+            </div>
+                </main>
+                
+                <!-- API设置区域 -->
+                <section class="glass-effect dark:glass-effect-dark rounded-2xl p-5 md:p-6 liquid-transition">
+                    <h2 class="text-xl font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                        <i class="fa fa-key text-klein-blue dark:text-hermes-orange mr-2"></i>
+                        API设置
+                        <div class="relative ml-2 cursor-help">
+                            <i class="fa fa-question-circle text-sm text-slate-500 dark:text-slate-400"></i>
+                            <div class="absolute top-1/2 left-full transform -translate-y-1/2 ml-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-5000">API密钥仅存储于本地缓存，请注意安全保管</div>
+                        </div>
+                    </h2>
+                    
+                    <div class="space-y-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    <div class="md:col-span-2">
+                        <label for="api-provider" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">API提供商</label>
+                        <div class="flex gap-2">
+                            <select id="api-provider" class="flex-1 glass-input input-focus text-slate-800 dark:text-white">
+                            <option value="volcengine">火山方舟</option>
+                            <option value="aliyun">阿里云百炼</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="google">Google Gemini</option>
+                        </select>
+                            <button id="register-btn" class="glass-btn px-3 py-0.5 text-sm" onclick="openRegisterLink()">
+                                注册
+                            </button>
+                        </div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label for="model-select" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">大模型</label>
+                        <select id="model-select" class="w-full glass-input input-focus text-slate-800 dark:text-white">
+                            <!-- 模型列表将通过JavaScript动态生成 -->
+                        </select>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <label for="api-key" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">API密钥</label>
+                        <div class="relative">
+                            <input type="password" id="api-key" class="w-full glass-input input-focus pr-10 text-slate-800 dark:text-white" placeholder="请输入API密钥">
+                            <button id="toggle-key-visibility" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 p-1.5 text-xs bg-transparent border-none">
+                                <i class="fa fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="save-api-settings" class="px-5 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-save"></i>
+                            <span>保存API密钥</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+                </section>
+            </div>
+            
+            <!-- 右侧：预览和结果区域 -->
+            <div class="lg:w-1/2 space-y-6">
+                <!-- AI输出预览区域 -->
+                <section id="ai-preview-section" class="glass-effect dark:glass-effect-dark rounded-2xl p-5 md:p-6 liquid-transition">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-slate-800 dark:text-white flex items-center">
+                            <i class="fa fa-eye text-green-600 dark:text-hermes-orange mr-2"></i>
+                            AI输出预览
+                        </h2>
+                        
+                        <!-- 预览模式切换 - 滑动选择样式 -->
+                        <div class="relative inline-flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0">
+                            <!-- 滑动指示器 - 默认位于预览模式 -->
+                            <span id="mode-slider" class="absolute left-0 top-0 bg-klein-blue dark:bg-hermes-orange rounded-lg transition-all duration-300 transform translate-x-full w-1/2 h-full"></span>
+                            <button id="edit-mode-btn" class="relative z-10 px-5 py-0.5 text-sm font-medium rounded-lg transition-all duration-300 text-slate-600 dark:text-slate-300 glass-btn mode-btn bg-transparent hover:bg-white/20 dark:hover:bg-slate-600/20">
+                                <i class="fa fa-pencil mr-2"></i>编辑模式
+                            </button>
+                            <button id="preview-mode-btn" class="relative z-10 px-5 py-0.5 text-sm font-medium rounded-lg transition-all duration-300 text-slate-600 dark:text-slate-300 glass-btn mode-btn bg-transparent hover:bg-white/20 dark:hover:bg-slate-600/20">
+                                <i class="fa fa-eye mr-2"></i>预览模式
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 深度思考显示区域 -->
+                    <div id="thought-chain-section" class="mb-4 glass-effect dark:glass-effect-dark rounded-lg p-3">
+                        <div class="flex items-center justify-between cursor-pointer hover:bg-white/10 dark:hover:bg-slate-700/20 rounded-lg p-2 transition-all duration-300" id="thought-chain-toggle">
+                            <div class="flex items-center gap-3">
+                                <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+                                    <i class="fa fa-brain text-yellow-500 dark:text-hermes-orange mr-2"></i>
+                                    深度思考
+                                </h3>
+                                <span id="thinking-timer" class="text-xs px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hidden">0.000s</span>
+                            </div>
+                            <i class="fa fa-chevron-down text-slate-500 dark:text-slate-400 transition-transform duration-300" id="thought-chain-icon"></i>
+                        </div>
+                        <div id="thought-chain-content" class="mt-3 p-3 glass-effect dark:glass-effect-dark rounded-lg hidden max-h-60 overflow-y-auto scrollbar-hide transition-all duration-300">
+                            <pre id="thought-chain-text" class="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300"></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <!-- 编辑模式：textarea -->
+                        <textarea id="ai-preview-content" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg p-4 h-[50vh] resize-y input-focus text-slate-800 dark:text-white scrollbar-hide hidden" placeholder="AI生成的回复将显示在这里..."></textarea>
+                        
+                        <!-- 预览模式：markdown渲染 -->
+                        <div id="ai-preview-rendered" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg p-4 h-[50vh] overflow-y-auto liquid-transition text-slate-800 dark:text-white scrollbar-hide"></div>
+                    </div>
+                    
+
+                    
+                    <!-- 当前使用的API设置显示 -->
+                    <div class="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <p class="text-sm text-slate-700 dark:text-slate-300">
+                            <strong>当前使用：</strong>
+                            <span id="current-provider-display">API提供商</span>
+                            <span class="mx-2">|</span>
+                            <span id="current-model-display">大模型</span>
+                        </p>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button id="generate-ai-response" class="px-5 py-2.5 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-magic"></i>
+                            <span>AI生成</span>
+                        </button>
+                        <button id="regenerate-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-refresh"></i>
+                            <span>重新生成</span>
+                        </button>
+                        <button id="discard-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-times"></i>
+                            <span>清空结果</span>
+                        </button>
+                        <button id="copy-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-copy"></i>
+                            <span>复制结果</span>
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- 结果区域 -->
+                <section class="glass-effect dark:glass-effect-dark rounded-2xl p-5 md:p-6 liquid-transition">
+                    <h2 class="text-xl font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                        <i class="fa fa-code text-klein-blue dark:text-hermes-orange mr-2"></i>
+                        对话转为JSON
+                        <div class="relative ml-2 cursor-help">
+                            <i class="fa fa-question-circle text-sm text-slate-500 dark:text-slate-400"></i>
+                            <div class="absolute top-1/2 left-full transform -translate-y-1/2 ml-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-5000">对话JSON可直接在大模型平台，对话框中粘贴使用</div>
+                        </div>
+                    </h2>
+                    
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <button id="generate-json" class="px-5 py-2.5 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-magic"></i>
+                            <span>生成JSON</span>
+                        </button>
+
+                        <button id="copy-json" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-copy"></i>
+                            <span>复制到剪贴板</span>
+                        </button>
+                        
+
+                    </div>
+                    
+                    <div class="mt-4 relative">
+                        <pre id="json-output" class="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 text-sm md:text-base overflow-x-auto max-h-[30vh] text-slate-800 dark:text-slate-200 scrollbar-hide"></pre>
+                        <div id="copy-notification" class="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm opacity-0 transition-opacity duration-300">
+                            已复制!
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        
+        <!-- 页脚 -->
+        <footer class="mt-6 text-center text-slate-500 dark:text-slate-400 text-sm">
+            <p><a href="mailto:341812@qq.com" class="text-klein-blue dark:text-hermes-orange hover:underline">老独</a> | <a href="https://www.yizipaper.com" target="_blank" class="text-klein-blue dark:text-hermes-orange hover:underline">YiziPaper.com</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // 初始化主题
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+        
+        // 打开API提供商注册链接
+        const openRegisterLink = () => {
+            const provider = document.getElementById('api-provider').value;
+            const registerLinks = {
+                volcengine: 'https://www.volcengine.com/product/ark',
+                aliyun: 'https://bailian.aliyun.com/',
+                openai: 'https://platform.openai.com/signup',
+                anthropic: 'https://console.anthropic.com/signup',
+                google: 'https://ai.google.dev/gemini-api/docs/get-started/tutorial?lang=node.js'
+            };
+            const link = registerLinks[provider] || 'https://github.com/';
+            window.open(link, '_blank');
+        };
+        
+        // 主题切换
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        });
+        
+        // 对话模板 - 支持user、assistant、system三种角色（微信风格）
+        const conversationTemplates = {
+            assistant: (index) => `
+                <div class="conversation-turn flex items-start liquid-transition p-3 rounded-xl relative" data-index="${index}" data-role="assistant">
+                    <div class="flex-shrink-0 mr-3 relative">
+                        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
+                            <img src="ai.jpg" alt="AI机器人头像" class="w-full h-full object-cover">
+                        </div>
+                        <select class="role-select hidden" value="assistant">
+                            <option value="user">用户</option>
+                            <option value="assistant" selected>AI助手</option>
+                            <option value="system">系统</option>
+                        </select>
+                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-1000">点击切换角色</div>
+                    </div>
+                    <div class="flex flex-col items-start w-full max-w-[calc(100%-120px)] relative">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">AI助手</span>
+                        </div>
+                        <textarea class="content-input wechat-bubble-assistant p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="AI助手的回复..."></textarea>
+                        <div class="absolute top-2 right-2 z-6000">
+                            <button class="delete-turn glass-btn">
+                                <i class="fa fa-times text-xs"></i>
+                            </button>
+                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            user: (index) => `
+                <div class="conversation-turn flex items-start justify-end liquid-transition p-3 rounded-xl relative" data-index="${index}" data-role="user">
+                    <div class="flex flex-col items-end w-full max-w-[calc(100%-120px)] order-2 relative">
+                        <div class="flex items-center gap-2 mb-1 justify-end">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">用户</span>
+                        </div>
+                        <textarea class="content-input wechat-bubble-user p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="用户的提问..."></textarea>
+                        <div class="absolute top-2 left-2 z-6000">
+                            <button class="delete-turn glass-btn">
+                                <i class="fa fa-times text-xs"></i>
+                            </button>
+                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 ml-3 order-3 relative">
+                        <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
+                            <img src="user.jpg" alt="用户头像" class="w-full h-full object-cover">
+                        </div>
+                        <select class="role-select hidden" value="user">
+                            <option value="user" selected>用户</option>
+                            <option value="assistant">AI助手</option>
+                            <option value="system">系统</option>
+                        </select>
+                        <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-1000">点击切换角色</div>
+                    </div>
+                </div>
+            `,
+            system: (index) => `
+                <div class="conversation-turn flex items-start justify-center liquid-transition p-3 rounded-xl relative" data-index="${index}" data-role="system">
+                    <div class="flex flex-col items-center w-full max-w-[calc(100%-120px)] relative">
+                        <div class="flex items-center gap-2 mb-1 justify-center">
+                            <div class="flex-shrink-0 relative mx-3">
+                                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
+                                    <img src="system.jpg" alt="系统头像" class="w-full h-full object-cover">
+                                </div>
+                                <select class="role-select hidden" value="system">
+                                    <option value="user">用户</option>
+                                    <option value="assistant">AI助手</option>
+                                    <option value="system" selected>系统</option>
+                                </select>
+                                <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-1000">点击切换角色</div>
+                            </div>
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">系统提示</span>
+                        </div>
+                        <textarea class="content-input wechat-bubble-system p-3 min-h-[60px] resize-y input-focus liquid-transition text-slate-600 dark:text-slate-300 text-sm w-full" placeholder="系统提示内容..."></textarea>
+                        <div class="absolute top-2 right-2 z-6000">
+                            <button class="delete-turn glass-btn">
+                                <i class="fa fa-times text-xs"></i>
+                            </button>
+                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        </div>
+                    </div>
+                </div>
+            `
+        };
+        
+        // 全局变量
+        let conversationTurns = 0;
+        const container = document.getElementById('conversation-container');
+        
+        // 添加一对对话轮次（用户和AI各一条）
+        const addConversationPair = () => {
+            // 先添加用户消息，再添加AI消息，形成一个完整轮次
+            addSingleTurn('user');
+            addSingleTurn('assistant');
+        };
+        
+        // 切换角色
+        const switchRole = (turnElement) => {
+            const currentRole = turnElement.getAttribute('data-role');
+            const roles = ['user', 'assistant', 'system'];
+            const currentIndex = roles.indexOf(currentRole);
+            const newRole = roles[(currentIndex + 1) % roles.length];
+            
+            const textarea = turnElement.querySelector('.content-input');
+            const currentContent = textarea.value;
+            
+            // 保存当前对话的位置
+            const parent = turnElement.parentNode;
+            const nextSibling = turnElement.nextSibling;
+            
+            // 创建新的对话元素
+            const newTurnElement = document.createElement('div');
+            newTurnElement.innerHTML = conversationTemplates[newRole](turnElement.getAttribute('data-index'));
+            const updatedTurn = newTurnElement.firstElementChild;
+            
+            // 设置内容
+            updatedTurn.querySelector('.content-input').value = currentContent;
+            
+            // 替换原有对话
+            parent.insertBefore(updatedTurn, nextSibling);
+            turnElement.remove();
+            
+            // 重新添加事件监听器
+            addEventListeners(updatedTurn);
+        };
+        
+        // 添加单个对话
+        const addSingleTurn = (role, content = '') => {
+            conversationTurns++;
+            const turnElement = document.createElement('div');
+            turnElement.innerHTML = conversationTemplates[role](conversationTurns);
+            const newTurn = turnElement.firstElementChild;
+            
+            // 设置初始内容
+            const textarea = newTurn.querySelector('.content-input');
+            textarea.value = content;
+            
+            container.appendChild(newTurn);
+            
+            // 添加删除事件
+            const deleteBtn = newTurn.querySelector('.delete-turn');
+            deleteBtn.addEventListener('click', function() {
+                // 确保至少保留两条对话（一组完整对话）
+                if (document.querySelectorAll('.conversation-turn').length > 2) {
+                    newTurn.remove();
+                    conversationTurns--;
+                    // 更新索引
+                    updateTurnIndices();
+                    // 删除对话后保存到本地存储
+                    saveConversation();
+                } else {
+                    alert('至少保留一组完整对话（用户和AI各一条）');
+                }
+            });
+            
+            // 添加点击头像切换角色事件
+            const avatar = newTurn.querySelector('.flex-shrink-0 .rounded-full');
+            avatar.addEventListener('click', function() {
+                switchRole(newTurn);
+            });
+            
+            // 添加输入事件，自动移除错误提示
+            textarea.addEventListener('input', function() {
+                this.classList.remove('border-red-500');
+            });
+            
+            // 滚动到底部
+            container.scrollTop = container.scrollHeight;
+        };
+        
+        // 为对话元素添加事件监听器
+        const addEventListeners = (turnElement) => {
+            // 删除事件
+            const deleteBtn = turnElement.querySelector('.delete-turn');
+            deleteBtn.addEventListener('click', function() {
+                if (document.querySelectorAll('.conversation-turn').length > 2) {
+                    turnElement.remove();
+                    conversationTurns--;
+                    updateTurnIndices();
+                    // 删除对话后保存到本地存储
+                    saveConversation();
+                } else {
+                    alert('至少保留一组完整对话（用户和AI各一条）');
+                }
+            });
+            
+            // 添加点击头像切换角色事件
+            const avatar = turnElement.querySelector('.flex-shrink-0 .rounded-full');
+            avatar.addEventListener('click', function() {
+                switchRole(turnElement);
+            });
+            
+            // 添加输入事件，自动移除错误提示
+            const textarea = turnElement.querySelector('.content-input');
+            textarea.addEventListener('input', function() {
+                this.classList.remove('border-red-500');
+            });
+        };
+        
+        // 更新对话轮次索引
+        const updateTurnIndices = () => {
+            const turns = document.querySelectorAll('.conversation-turn');
+            turns.forEach((turn, index) => {
+                turn.setAttribute('data-index', index + 1);
+            });
+            conversationTurns = turns.length;
+        };
+        
+        // 保存对话到本地存储
+        const saveConversation = () => {
+            const turns = document.querySelectorAll('.conversation-turn');
+            const conversationData = [];
+            
+            turns.forEach(turn => {
+                const role = turn.getAttribute('data-role');
+                const content = turn.querySelector('.content-input').value;
+                conversationData.push({ role, content });
+            });
+            
+            localStorage.setItem('aiConversationData', JSON.stringify(conversationData));
+        };
+        
+        // 从本地存储加载对话
+        const loadConversation = () => {
+            const savedData = localStorage.getItem('aiConversationData');
+            if (savedData) {
+                try {
+                    const conversationData = JSON.parse(savedData);
+                    
+                    // 清空现有对话
+                    container.innerHTML = '';
+                    conversationTurns = 0;
+                    
+                    // 加载保存的对话
+                    conversationData.forEach(item => {
+                        if (item.role && conversationTemplates[item.role]) {
+                            addSingleTurn(item.role, item.content);
+                        }
+                    });
+                    
+                    // 总是返回true，避免添加示例对话
+                    return true;
+                } catch (error) {
+                    console.error('加载对话失败:', error);
+                    // 即使加载失败，也不要添加示例对话，保留空状态
+                    return true;
+                }
+            }
+            return false;
+        };
+        
+        // 全局配置变量
+        let appConfig = {
+            modelList: {},
+            requestConfigs: {}
+        };
+
+        // 从外部文件加载配置
+        const loadConfig = () => {
+            // 直接使用window.appConfig，由外部model-config.js文件提供
+            if (window.appConfig) {
+                appConfig = window.appConfig;
+                console.log('配置从外部JavaScript文件加载成功:', appConfig);
+                // 配置加载完成后初始化模型列表
+                updateModelList();
+            } else {
+                console.error('window.appConfig未定义，使用默认配置');
+                // 使用最小化的默认配置
+                appConfig = {
+                    modelList: {
+                        volcengine: [
+                            { name: 'doubao-seed-1-6-lite-251015', value: 'doubao-seed-1-6-lite-251015' },
+                            { name: 'doubao-seed-1-6-thinking-250715', value: 'doubao-seed-1-6-thinking-250715' }
+                        ],
+                        openai: [
+                            { name: 'GPT-4 Turbo', value: 'gpt-4-turbo' },
+                            { name: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' }
+                        ],
+                        anthropic: [
+                            { name: 'Claude 3 Sonnet', value: 'claude-3-sonnet-20240229' }
+                        ],
+                        google: [
+                            { name: 'Gemini Pro', value: 'gemini-pro' }
+                        ]
+                    },
+                    requestConfigs: {
+                        volcengine: {
+                            url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer {{apiKey}}'
+                            },
+                            bodyTemplate: {
+                                model: '{{selectedModel}}',
+                                messages: '{{conversation}}',
+                                temperature: 0.7,
+                                max_tokens: 3000,
+                                stream: true,
+                                enable_thinking: true
+                            },
+                            responseHandler: 'volcengine'
+                        },
+                        openai: {
+                            url: 'https://api.openai.com/v1/chat/completions',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer {{apiKey}}'
+                            },
+                            bodyTemplate: {
+                                model: '{{selectedModel}}',
+                                messages: '{{conversation}}',
+                                temperature: 0.7,
+                                max_tokens: 1000,
+                                stream: true
+                            },
+                            responseHandler: 'openai'
+                        },
+                        anthropic: {
+                            url: 'https://api.anthropic.com/v1/messages',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': '{{apiKey}}',
+                                'anthropic-version': '2023-06-01'
+                            },
+                            bodyTemplate: {
+                                model: '{{selectedModel}}',
+                                messages: '{{conversation}}',
+                                temperature: 0.7,
+                                max_tokens: 1000,
+                                stream: true
+                            },
+                            responseHandler: 'anthropic'
+                        },
+                        google: {
+                            url: 'https://generativelanguage.googleapis.com/v1/models/{{selectedModel}}:generateContent',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-goog-api-key': '{{apiKey}}'
+                            },
+                            bodyTemplate: {
+                                contents: '{{conversation}}',
+                                generationConfig: {
+                                    temperature: 0.7,
+                                    maxOutputTokens: 1000
+                                },
+                                stream: true
+                            },
+                            responseHandler: 'google'
+                        }
+                    }
+                };
+                // 配置加载完成后初始化模型列表
+                updateModelList();
+            }
+        };
+        
+        // 根据API提供商更新大模型列表
+        const updateModelList = () => {
+            const provider = document.getElementById('api-provider').value;
+            const modelSelect = document.getElementById('model-select');
+            const models = appConfig.modelList[provider] || [];
+            
+            // 清空现有选项
+            modelSelect.innerHTML = '';
+            
+            // 添加新选项
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.value;
+                option.textContent = model.name;
+                modelSelect.appendChild(option);
+            });
+        };
+        
+        // 保存API设置到本地存储
+        const saveApiSettings = () => {
+            const provider = document.getElementById('api-provider').value;
+            const model = document.getElementById('model-select').value;
+            const key = document.getElementById('api-key').value;
+            
+            // 获取当前所有保存的API设置
+            const savedSettings = localStorage.getItem('aiApiSettings');
+            const allSettings = savedSettings ? JSON.parse(savedSettings) : {};
+            
+            // 更新当前提供商的设置
+            allSettings[provider] = { provider, model, key };
+            
+            // 保存到本地存储
+            localStorage.setItem('aiApiSettings', JSON.stringify(allSettings));
+            alert('API设置已保存！');
+        };
+        
+        // 更新当前使用的API设置显示
+        const updateCurrentApiSettingsDisplay = () => {
+            const provider = document.getElementById('api-provider').value;
+            const model = document.getElementById('model-select').value;
+            
+            // 提供商名称映射
+            const providerNames = {
+                volcengine: '火山方舟',
+                aliyun: '阿里云百炼',
+                openai: 'OpenAI',
+                anthropic: 'Anthropic',
+                google: 'Google Gemini'
+            };
+            
+            // 更新显示
+            document.getElementById('current-provider-display').textContent = providerNames[provider] || provider;
+            document.getElementById('current-model-display').textContent = model || '未选择';
+        };
+        
+        // 从本地存储加载API设置
+        const loadApiSettings = () => {
+            const savedSettings = localStorage.getItem('aiApiSettings');
+            if (savedSettings) {
+                try {
+                    const allSettings = JSON.parse(savedSettings);
+                    const provider = document.getElementById('api-provider').value;
+                    
+                    // 更新模型列表
+                    updateModelList();
+                    
+                    // 如果有当前提供商的设置，加载它
+                    if (allSettings[provider]) {
+                        const settings = allSettings[provider];
+                        document.getElementById('model-select').value = settings.model || '';
+                        document.getElementById('api-key').value = settings.key;
+                    } else {
+                        // 否则清空模型和密钥
+                        document.getElementById('model-select').value = '';
+                        document.getElementById('api-key').value = '';
+                    }
+                } catch (error) {
+                    console.error('加载API设置失败:', error);
+                    updateModelList();
+                }
+            } else {
+                // 如果没有保存的设置，初始化模型列表
+                updateModelList();
+            }
+            
+            // 更新当前使用的API设置显示
+            updateCurrentApiSettingsDisplay();
+        };
+        
+        // 切换API密钥显示/隐藏
+        const toggleApiKeyVisibility = () => {
+            const apiKeyInput = document.getElementById('api-key');
+            const toggleBtn = document.getElementById('toggle-key-visibility');
+            const icon = toggleBtn.querySelector('i');
+            
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                apiKeyInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        };
+        
+        // 替换模板中的变量
+        const replaceTemplateVariables = (template, variables) => {
+            if (typeof template === 'string') {
+                return template.replace(/{{(\w+)}}/g, (match, key) => {
+                    return variables[key] || match;
+                });
+            } else if (typeof template === 'object' && template !== null) {
+                if (Array.isArray(template)) {
+                    return template.map(item => replaceTemplateVariables(item, variables));
+                } else {
+                    const result = {};
+                    for (const [key, value] of Object.entries(template)) {
+                        result[key] = replaceTemplateVariables(value, variables);
+                    }
+                    return result;
+                }
+            }
+            return template;
+        };
+
+        // 处理Google特定的请求格式
+        const processGoogleConversation = (conversation) => {
+            return conversation.map(msg => ({
+                role: msg.role,
+                parts: [{ text: msg.content }]
+            }));
+        };
+
+        // 构建API请求
+        const buildApiRequest = (provider, conversation, apiKey) => {
+            // 获取用户选择的模型
+            const selectedModel = document.getElementById('model-select').value;
+            
+            // 获取配置
+            const config = appConfig.requestConfigs[provider] || appConfig.requestConfigs.openai;
+            
+            // 处理Google特定的对话格式
+            let processedConversation = conversation;
+            if (provider === 'google') {
+                processedConversation = processGoogleConversation(conversation);
+            }
+            
+            // 构建请求选项
+            const options = {
+                method: 'POST',
+                headers: {},
+                body: JSON.stringify({})
+            };
+            
+            // 处理headers
+            for (const [key, value] of Object.entries(config.headers)) {
+                options.headers[key] = typeof value === 'string' 
+                    ? value.replace('{{apiKey}}', apiKey)
+                    : value;
+            }
+            
+            // 处理body
+            const body = { ...config.body };
+            for (const [key, value] of Object.entries(body)) {
+                if (key === 'model') {
+                    body[key] = selectedModel || 'gpt-3.5-turbo';
+                } else if (key === 'messages' || key === 'contents') {
+                    // 直接赋值对象，不进行字符串替换
+                    body[key] = processedConversation;
+                } else if (typeof value === 'string') {
+                    body[key] = value.replace('{{selectedModel}}', selectedModel || 'gpt-3.5-turbo');
+                }
+            }
+            options.body = JSON.stringify(body);
+            
+            // 处理URL
+            let url = config.endpoint;
+            if (url && url.includes('{{model}}')) {
+                url = url.replace('{{model}}', selectedModel || 'gpt-3.5-turbo');
+            }
+            
+            // 响应处理器映射
+            const openaiResponseHandler = (response) => {
+                // 检查是否包含思维链
+                if (response.choices[0]?.message?.thinking) {
+                    showThoughtChain(response.choices[0].message.thinking);
+                }
+                return response.choices[0].message.content;
+            };
+            
+            const responseHandlers = {
+                openai: openaiResponseHandler,
+                anthropic: (response) => {
+                    // 检查是否包含思维链
+                    if (response.content[0]?.thinking) {
+                        showThoughtChain(response.content[0].thinking);
+                    }
+                    return response.content[0].text;
+                },
+                google: (response) => {
+                    // 检查是否包含思维链
+                    if (response.candidates[0]?.content?.thinking) {
+                        showThoughtChain(response.candidates[0].content.thinking);
+                    }
+                    return response.candidates[0].content.parts[0].text;
+                },
+                volcengine: (response) => {
+                    // 检查是否包含思维链（火山方舟格式）
+                    if (response.choices[0]?.message?.thinking) {
+                        showThoughtChain(response.choices[0].message.thinking);
+                    } else if (response.choices[0]?.message?.content?.includes('\n\nFinal Answer:')) {
+                        // 处理特殊格式的思维链
+                        const content = response.choices[0].message.content;
+                        const thinkingEndIndex = content.indexOf('\n\nFinal Answer:');
+                        if (thinkingEndIndex !== -1) {
+                            const thinking = content.substring(0, thinkingEndIndex).trim();
+                            showThoughtChain(thinking);
+                            return content.substring(thinkingEndIndex + 16).trim(); // 返回Final Answer部分
+                        }
+                    }
+                    return response.choices[0].message.content;
+                },
+                aliyun: (response) => {
+                    // 阿里云百炼专用响应处理器，支持多种思维链格式
+                    const choice = response.choices[0];
+                    const message = choice?.message;
+                    
+                    // 1. 检查标准OpenAI格式的thinking字段
+                    if (message?.thinking) {
+                        showThoughtChain(message.thinking);
+                        return message.content;
+                    }
+                    
+                    // 2. 检查content中是否包含特殊格式的思维链
+                    if (message?.content) {
+                        const content = message.content;
+                        
+                        // 处理Final Answer格式（类似火山方舟）
+                        if (content.includes('\n\nFinal Answer:')) {
+                            const thinkingEndIndex = content.indexOf('\n\nFinal Answer:');
+                            if (thinkingEndIndex !== -1) {
+                                const thinking = content.substring(0, thinkingEndIndex).trim();
+                                showThoughtChain(thinking);
+                                return content.substring(thinkingEndIndex + 16).trim();
+                            }
+                        }
+                        
+                        // 处理思考过程+最终回答格式
+                        if (content.includes('\n\n最终回答:')) {
+                            const thinkingEndIndex = content.indexOf('\n\n最终回答:');
+                            if (thinkingEndIndex !== -1) {
+                                const thinking = content.substring(0, thinkingEndIndex).trim();
+                                showThoughtChain(thinking);
+                                return content.substring(thinkingEndIndex + 8).trim();
+                            }
+                        }
+                        
+                        // 处理思考: ... 回答: ... 格式
+                        const thinkingPattern = /思考[:：]\s*(.*?)\s*回答[:：]\s*/s;
+                        const match = content.match(thinkingPattern);
+                        if (match) {
+                            showThoughtChain(match[1].trim());
+                            return content.substring(match.index + match[0].length).trim();
+                        }
+                        
+                        // 处理[思考]...[回答]...格式
+                        const bracketPattern = /\[思考\]\s*(.*?)\s*\[回答\]\s*/s;
+                        const bracketMatch = content.match(bracketPattern);
+                        if (bracketMatch) {
+                            showThoughtChain(bracketMatch[1].trim());
+                            return content.substring(bracketMatch.index + bracketMatch[0].length).trim();
+                        }
+                    }
+                    
+                    // 3. 如果没有思维链，直接返回内容
+                    return message?.content || '';
+                }
+            };
+            
+            return {
+                url: url,
+                options: options,
+                responseHandler: responseHandlers[provider] || responseHandlers.openai
+            };
+        };
+        
+        // 发送API请求
+        const sendApiRequest = async (provider, conversation, apiKey) => {
+            try {
+                const requestConfig = buildApiRequest(provider, conversation, apiKey);
+                
+                console.log('API请求配置:', {
+                    provider,
+                    url: requestConfig.url,
+                    headers: requestConfig.options.headers,
+                    body: JSON.parse(requestConfig.options.body)
+                });
+                
+                // 设置请求超时
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+                
+                const response = await fetch(requestConfig.url, {
+                    ...requestConfig.options,
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                console.log('API响应状态:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('API错误数据:', errorData);
+                    throw new Error(errorData.error?.message || errorData.msg || `API请求失败: ${response.status} ${response.statusText}`);
+                }
+                
+                // 检查是否为流式响应
+                const contentType = response.headers.get('content-type');
+                console.log('API响应Content-Type:', contentType);
+                
+                if (contentType && contentType.includes('text/event-stream')) {
+                    // 流式响应
+                    return await streamAiResponse(response);
+                } else {
+                    // 普通JSON响应
+                    const data = await response.json();
+                    console.log('API响应数据:', data);
+                    const aiResponse = requestConfig.responseHandler(data);
+                    handleAiResponse(aiResponse);
+                    return aiResponse;
+                }
+            } catch (error) {
+                console.error('API请求错误详情:', {
+                    error: error.message,
+                    name: error.name,
+                    stack: error.stack
+                });
+                if (error.name === 'AbortError') {
+                    throw new Error('API请求超时，请检查网络连接或稍后重试');
+                } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    throw new Error(`生成AI回复失败: ${error.message}。请检查API密钥是否正确，以及您的网络是否能够访问该API提供商的服务。`);
+                }
+                throw error;
+            }
+        };
+        
+        // 生成AI回复
+        const generateAiResponse = async () => {
+            const provider = document.getElementById('api-provider').value;
+            const apiKey = document.getElementById('api-key').value;
+            
+            if (!apiKey) {
+                showNotification('请先设置API密钥！', 'error');
+                return;
+            }
+            
+            // 获取当前对话
+            const turns = document.querySelectorAll('.conversation-turn');
+            const conversation = [];
+            
+            turns.forEach(turn => {
+                const role = turn.getAttribute('data-role');
+                const content = turn.querySelector('.content-input').value.trim();
+                
+                if (content) {
+                    conversation.push({ role, content });
+                }
+            });
+            
+            if (conversation.length === 0) {
+                showNotification('请先添加对话内容！', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            const generateBtn = document.getElementById('generate-ai-response');
+            const originalText = generateBtn.innerHTML;
+            generateBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> <span>生成中...</span>';
+            generateBtn.disabled = true;
+            
+            // 清空预览内容
+            const previewContent = document.getElementById('ai-preview-content');
+            previewContent.value = '';
+            
+            try {
+                // 发送API请求
+                const aiResponse = await sendApiRequest(provider, conversation, apiKey);
+                
+                showNotification('AI回复生成成功！', 'success');
+            } catch (error) {
+                showNotification(`生成AI回复失败: ${error.message}`, 'error');
+            } finally {
+                // 恢复按钮状态
+                generateBtn.innerHTML = originalText;
+                generateBtn.disabled = false;
+            }
+        };
+        
+        // 显示/隐藏加载指示器
+        const showLoadingIndicator = (show) => {
+            let indicator = document.getElementById('loading-indicator');
+            
+            if (show) {
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.id = 'loading-indicator';
+                    indicator.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50';
+                    indicator.innerHTML = `
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl flex flex-col items-center">
+                            <div class="w-16 h-16 border-4 border-klein-blue border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p class="text-slate-800 dark:text-white font-medium">正在生成AI回复...</p>
+                            <p class="text-slate-500 dark:text-slate-400 text-sm mt-2">请稍候，这可能需要几秒钟</p>
+                        </div>
+                    `;
+                    document.body.appendChild(indicator);
+                }
+            } else {
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+        };
+        
+        // 显示通知
+        const showNotification = (message, type = 'info') => {
+            // 移除之前的通知
+            const existingNotification = document.getElementById('global-notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+            
+            const notification = document.createElement('div');
+            notification.id = 'global-notification';
+            
+            // 设置通知样式
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-exclamation' : 'fa-info';
+            
+            notification.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg fixed top-4 right-4 z-50 transform translate-x-full transition-transform duration-300`;
+            notification.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i class="fa ${icon}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // 显示通知
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // 自动隐藏通知
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        };
+        
+        // 增强的Markdown渲染函数
+        const renderMarkdown = (markdown) => {
+            if (!markdown) return '';
+            
+            // 1. 替换标题（h1-h6）
+            markdown = markdown.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>');
+            markdown = markdown.replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-3 mb-2">$1</h2>');
+            markdown = markdown.replace(/^### (.*$)/gm, '<h3 class="text-lg font-bold mt-2 mb-1">$1</h3>');
+            markdown = markdown.replace(/^#### (.*$)/gm, '<h4 class="text-base font-bold mt-2 mb-1">$1</h4>');
+            markdown = markdown.replace(/^##### (.*$)/gm, '<h5 class="text-sm font-bold mt-2 mb-1">$1</h5>');
+            markdown = markdown.replace(/^###### (.*$)/gm, '<h6 class="text-xs font-bold mt-2 mb-1">$1</h6>');
+            
+            // 2. 替换粗体和斜体
+            markdown = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            markdown = markdown.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // 3. 替换删除线
+            markdown = markdown.replace(/~~(.*?)~~/g, '<del>$1</del>');
+            
+            // 4. 替换链接
+            markdown = markdown.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-blue-500 dark:text-blue-400 hover:underline">$1</a>');
+            
+            // 5. 替换图片
+            markdown = markdown.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto my-4 rounded-lg">');
+            
+            // 6. 替换引用块
+            markdown = markdown.replace(/^> (.*$)/gm, '<blockquote class="border-l-4 border-blue-500 pl-4 py-1 my-2 text-slate-600 dark:text-slate-300">$1</blockquote>');
+            
+            // 7. 替换分隔线
+            markdown = markdown.replace(/^(---|\*\*\*|___)$/gm, '<hr class="border-t border-slate-300 dark:border-slate-600 my-4">');
+            
+            // 8. 替换无序列表块
+            // 匹配连续的无序列表项
+            const ulRegex = /(?:^(?:-|\*|\+) (.*)$\n?)+/gm;
+            markdown = markdown.replace(ulRegex, (match) => {
+                const items = match.trim().split('\n');
+                const liHtml = items.map(item => {
+                    const content = item.replace(/^(?:-|\*|\+) (.*)$/, '$1');
+                    return `<li>${content}</li>`;
+                }).join('');
+                return `<ul class="list-disc pl-5 mb-2">${liHtml}</ul>`;
+            });
+            
+            // 9. 替换有序列表块
+            // 匹配连续的有序列表项
+            const olRegex = /(?:^\d+\. (.*)$\n?)+/gm;
+            markdown = markdown.replace(olRegex, (match) => {
+                const items = match.trim().split('\n');
+                const liHtml = items.map(item => {
+                    const content = item.replace(/^\d+\. (.*)$/, '$1');
+                    return `<li>${content}</li>`;
+                }).join('');
+                return `<ol class="list-decimal pl-5 mb-2">${liHtml}</ol>`;
+            });
+            
+            // 10. 替换任务列表
+            markdown = markdown.replace(/^- \[x\] (.*$)/gm, '<ul class="list-none pl-5 mb-2"><li class="flex items-start"><input type="checkbox" checked disabled class="mr-2 mt-1">$1</li></ul>');
+            markdown = markdown.replace(/^- \[ \] (.*$)/gm, '<ul class="list-none pl-5 mb-2"><li class="flex items-start"><input type="checkbox" disabled class="mr-2 mt-1">$1</li></ul>');
+            
+            // 11. 替换代码块
+            markdown = markdown.replace(/```([\s\S]*?)```/g, '<pre class="bg-slate-200 dark:bg-slate-800 p-3 rounded-lg overflow-x-auto my-2"><code>$1</code></pre>');
+            markdown = markdown.replace(/`(.*?)`/g, '<code class="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">$1</code>');
+            
+            // 12. 替换表格
+            // 先处理表格行
+            const tableRegex = /(?:^\|.*\|$\n)+/gm;
+            markdown = markdown.replace(tableRegex, (tableMatch) => {
+                const lines = tableMatch.trim().split('\n');
+                if (lines.length < 2) return tableMatch;
+                
+                let htmlTable = '<table class="border-collapse border border-slate-300 dark:border-slate-600 w-full my-4">';
+                
+                lines.forEach((line, index) => {
+                    const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell.length > 0);
+                    
+                    if (index === 1 && cells.every(cell => cell.match(/^[-:]+$/))) {
+                        // 表头分隔线，跳过
+                        return;
+                    } else if (index === 0) {
+                        // 表头行
+                        htmlTable += '<thead><tr>';
+                        cells.forEach(cell => {
+                            htmlTable += `<th class="border border-slate-300 dark:border-slate-600 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-left">${cell}</th>`;
+                        });
+                        htmlTable += '</tr></thead><tbody>';
+                    } else {
+                        // 数据行
+                        htmlTable += '<tr>';
+                        cells.forEach(cell => {
+                            htmlTable += `<td class="border border-slate-300 dark:border-slate-600 px-4 py-2">${cell}</td>`;
+                        });
+                        htmlTable += '</tr>';
+                    }
+                });
+                
+                htmlTable += '</tbody></table>';
+                return htmlTable;
+            });
+            
+            // 13. 替换换行
+            markdown = markdown.replace(/\n/g, '<br>');
+            
+            return markdown;
+        };
+        
+        // 处理AI回复
+        const handleAiResponse = (aiResponse) => {
+            const previewContent = document.getElementById('ai-preview-content');
+            previewContent.value = aiResponse;
+            // 平滑滚动编辑区域到底部
+            smoothScrollToBottom(previewContent);
+            
+            // 如果当前是预览模式，更新预览
+            if (document.getElementById('ai-preview-content').classList.contains('hidden')) {
+                updatePreview();
+            }
+            
+            // 非流式响应，短暂显示光标后隐藏
+            typewriterCursor.show();
+            setTimeout(() => {
+                typewriterCursor.hide();
+            }, 1000);
+        };
+        
+        // 更新预览
+        const updatePreview = () => {
+            const content = document.getElementById('ai-preview-content').value;
+            const rendered = document.getElementById('ai-preview-rendered');
+            
+            // 移除之前的光标
+            const existingCursor = rendered.querySelector('.inline-cursor');
+            if (existingCursor) {
+                existingCursor.remove();
+            }
+            
+            // 更新渲染内容
+            rendered.innerHTML = renderMarkdown(content);
+            
+            // 平滑滚动预览区域到底部
+            smoothScrollToBottom(rendered);
+            
+            // 如果正在打字，重新添加光标到末尾
+            const previewContent = document.getElementById('ai-preview-content');
+            if (previewContent.classList.contains('hidden')) {
+                // 添加新光标到内容末尾
+                const cursorSpan = document.createElement('span');
+                cursorSpan.className = 'inline-cursor typewriter-cursor-blink text-slate-500 dark:text-slate-400';
+                cursorSpan.textContent = '▌';
+                rendered.appendChild(cursorSpan);
+            }
+        };
+        
+        // 切换到编辑模式
+        const switchToEditMode = () => {
+            document.getElementById('ai-preview-content').classList.remove('hidden');
+            document.getElementById('ai-preview-rendered').classList.add('hidden');
+            
+            // 控制滑动指示器位置
+            const slider = document.getElementById('mode-slider');
+            if (slider) {
+                slider.style.transform = 'translateX(0)';
+            }
+        };
+        
+        // 切换到预览模式
+        const switchToPreviewMode = () => {
+            updatePreview();
+            document.getElementById('ai-preview-content').classList.add('hidden');
+            document.getElementById('ai-preview-rendered').classList.remove('hidden');
+            
+            // 控制滑动指示器位置
+            const slider = document.getElementById('mode-slider');
+            if (slider) {
+                slider.style.transform = 'translateX(100%)';
+            }
+        };
+        
+        // 平滑滚动辅助函数
+        const smoothScrollToBottom = (element) => {
+            // 使用CSS平滑滚动
+            element.scrollTo({
+                top: element.scrollHeight,
+                behavior: 'smooth'
+            });
+        };
+
+        // 打字机光标管理
+        const typewriterCursor = {
+            
+            init() {
+                // 初始化时不需要获取元素，使用时动态获取
+            },
+            
+            show() {
+                // 编辑模式：使用textarea内置光标，无需额外处理
+                
+                // 预览模式：将光标添加到内容末尾
+                if (document.getElementById('ai-preview-content').classList.contains('hidden')) {
+                    const previewRendered = document.getElementById('ai-preview-rendered');
+                    if (previewRendered) {
+                        // 移除之前的光标
+                        const existingCursor = previewRendered.querySelector('.inline-cursor');
+                        if (existingCursor) {
+                            existingCursor.remove();
+                        }
+                        // 添加新光标到内容末尾
+                        const cursorSpan = document.createElement('span');
+                        cursorSpan.className = 'inline-cursor typewriter-cursor-blink text-slate-500 dark:text-slate-400';
+                        cursorSpan.textContent = '▌';
+                        previewRendered.appendChild(cursorSpan);
+                    }
+                }
+            },
+            
+            hide() {
+                // 移除预览模式下的光标
+                const previewRendered = document.getElementById('ai-preview-rendered');
+                if (previewRendered) {
+                    const existingCursor = previewRendered.querySelector('.inline-cursor');
+                    if (existingCursor) {
+                        existingCursor.remove();
+                    }
+                }
+            }
+        };
+
+        // 打字机效果配置
+        const typewriterConfig = {
+            thinkingSpeed: 30, // 深度思考打字速度（毫秒/字符）
+            responseSpeed: 20, // 正式回复打字速度（毫秒/字符）
+            batchSize: 5, // 批量处理字符数，平衡流畅度和性能
+            batchDelay: 100 // 批量处理延迟（毫秒）
+        };
+
+        // 流式输出AI回复
+        const streamAiResponse = async (response) => {
+            const previewContent = document.getElementById('ai-preview-content');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+            let fullResponse = '';
+            let thinkingChain = '';
+            let buffer = '';
+            
+            // 计时器变量 - 彻底简化设计
+            let thinkingStartTime = null;
+            let thinkingTimer = null; // 仅用于存储setInterval ID
+            const timerElement = document.getElementById('thinking-timer');
+            let isDeepThinkingActive = false; // 核心状态变量：标记是否正在进行深度思考
+            
+            // 字符队列和打字机状态
+            const thinkingQueue = [];
+            const responseQueue = [];
+            let isTyping = false;
+            let lastUpdateTime = 0;
+            
+            // 清空预览内容和深度思考
+            previewContent.value = '';
+            const thoughtChainText = document.getElementById('thought-chain-text');
+            thoughtChainText.textContent = '';
+            const thoughtChainSection = document.getElementById('thought-chain-section');
+            const thoughtChainContent = document.getElementById('thought-chain-content');
+            thoughtChainSection.classList.remove('hidden'); // 生成时显示深度思考区域
+            thoughtChainContent.classList.remove('hidden'); // 生成时显示深度思考内容
+            
+            // 重置计时器
+            timerElement.textContent = '0.000s';
+            timerElement.classList.add('hidden');
+            
+            // 开始计时函数 - 彻底简化，直接启动计时器
+            const startThinkingTimer = () => {
+                // 如果计时器未启动，启动计时器
+                if (!thinkingTimer) {
+                    // 如果计时器从未开始，初始化计时
+                    if (!thinkingStartTime) {
+                        thinkingStartTime = Date.now(); // 使用Date.now()更简单可靠
+                        timerElement.classList.remove('hidden');
+                    }
+                    
+                    // 启动计时器，每10毫秒更新一次
+                    thinkingTimer = setInterval(() => {
+                        // 直接计算时间差，不需要复杂的状态管理
+                        const elapsed = (Date.now() - thinkingStartTime) / 1000;
+                        timerElement.textContent = elapsed.toFixed(3) + 's';
+                    }, 10);
+                }
+            };
+            
+            // 停止计时函数 - 彻底简化，直接停止计时器
+            const stopThinkingTimer = () => {
+                // 如果计时器正在运行，停止计时器
+                if (thinkingTimer) {
+                    clearInterval(thinkingTimer);
+                    thinkingTimer = null;
+                }
+            };
+            
+            // 重置计时函数，用于处理新的深度思考周期
+            const resetThinkingTimer = () => {
+                // 停止当前计时
+                stopThinkingTimer();
+                // 重置计时变量
+                thinkingStartTime = null;
+                isDeepThinkingActive = false;
+                // 重置计时器显示
+                timerElement.textContent = '0.000s';
+                timerElement.classList.add('hidden');
+            };
+
+            // 打字机核心函数
+            const typeWriter = () => {
+                if (isTyping) return;
+                
+                isTyping = true;
+                // 显示光标
+                typewriterCursor.show();
+                
+                const now = performance.now();
+                const timeSinceLastUpdate = now - lastUpdateTime;
+                
+                // 处理深度思考队列
+                if (thinkingQueue.length > 0) {
+                    // 确保计时器在运行
+                    startThinkingTimer();
+                    
+                    const batchSize = Math.min(typewriterConfig.batchSize, thinkingQueue.length);
+                    const batch = thinkingQueue.splice(0, batchSize).join('');
+                    
+                    thinkingChain += batch;
+                    thoughtChainText.textContent = thinkingChain;
+                    thoughtChainSection.classList.remove('hidden');
+                    thoughtChainContent.classList.remove('hidden');
+                    
+                    // 平滑滚动深度思考到底部
+                    smoothScrollToBottom(thoughtChainContent);
+                    
+                    lastUpdateTime = now;
+                    setTimeout(() => {
+                        isTyping = false;
+                        // 如果还有深度思考内容要输出，继续打字
+                        if (thinkingQueue.length > 0) {
+                            typeWriter();
+                        } 
+                        // 如果深度思考队列空了，检查是否还有回复内容要输出
+                        else if (responseQueue.length > 0) {
+                            // 深度思考内容输出完毕，停止计时
+                            stopThinkingTimer();
+                            typeWriter();
+                        } 
+                        // 所有内容输出完毕
+                        else {
+                            // 深度思考内容输出完毕，停止计时
+                            stopThinkingTimer();
+                            // 隐藏光标
+                            typewriterCursor.hide();
+                        }
+                    }, typewriterConfig.thinkingSpeed * batchSize);
+                }
+                // 处理正式回复队列
+                else if (responseQueue.length > 0) {
+                    const batchSize = Math.min(typewriterConfig.batchSize, responseQueue.length);
+                    const batch = responseQueue.splice(0, batchSize).join('');
+                    
+                    fullResponse += batch;
+                    previewContent.value = fullResponse;
+                    
+                    // 平滑滚动正文到底部
+                    smoothScrollToBottom(previewContent);
+                    
+                    // 如果当前是预览模式，更新预览
+                    if (previewContent.classList.contains('hidden')) {
+                        updatePreview();
+                    }
+                    
+                    lastUpdateTime = now;
+                    setTimeout(() => {
+                        isTyping = false;
+                        // 如果还有内容要输出，继续打字；否则隐藏光标
+                        if (thinkingQueue.length > 0 || responseQueue.length > 0) {
+                            typeWriter();
+                        } else {
+                            typewriterCursor.hide();
+                        }
+                    }, typewriterConfig.responseSpeed * batchSize);
+                }
+                // 队列为空，结束打字
+                else {
+                    isTyping = false;
+                    // 隐藏光标
+                    typewriterCursor.hide();
+                }
+            };
+            
+            while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                done = doneReading;
+                
+                if (value) {
+                    const chunk = decoder.decode(value, { stream: true });
+                    buffer += chunk;
+                    
+                    // 处理SSE格式
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 保留最后一行不完整的部分
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                        done = true;
+                                        // 停止计时，因为所有数据都已处理完毕
+                                        stopThinkingTimer();
+                                        break;
+                                    }
+                            
+                            try {
+                                const json = JSON.parse(data);
+                                
+                                // 检查是否是AI模型的响应格式
+                                if (json.choices && json.choices[0]) {
+                                    const choice = json.choices[0];
+                                    const delta = choice.delta || choice.message || {};
+                                    
+                                    // 1. 检查是否有reasoning_content字段（火山引擎深度思考格式）
+                                    if (delta.reasoning_content) {
+                                        isDeepThinkingActive = true;
+                                        startThinkingTimer();
+                                        thinkingQueue.push(...delta.reasoning_content.split(''));
+                                        typeWriter();
+                                    }
+                                    // 2. 检查是否有thinking字段（OpenAI兼容格式，包括阿里云百炼）
+                                    else if (delta.thinking) {
+                                        isDeepThinkingActive = true;
+                                        startThinkingTimer();
+                                        thinkingQueue.push(...delta.thinking.split(''));
+                                        typeWriter();
+                                    }
+                                    // 3. 检查是否有content字段（最终回复）
+                                    else if (delta.content) {
+                                        let content = delta.content;
+                                        
+                                        if (content) {
+                                            let remainingContent = content;
+                                            
+                                            // 处理所有可能的思维链格式
+                                            while (remainingContent.length > 0) {
+                                                // 3.1 处理火山引擎的<thinking></thinking>标签格式
+                                                const thinkingTagStart = remainingContent.indexOf('<thinking>');
+                                                if (thinkingTagStart !== -1) {
+                                                    isDeepThinkingActive = true;
+                                                    startThinkingTimer();
+                                                    
+                                                    // 将标签前的内容添加到最终回复队列
+                                                    if (thinkingTagStart > 0) {
+                                                        const preThinkingContent = remainingContent.substring(0, thinkingTagStart);
+                                                        responseQueue.push(...preThinkingContent.split(''));
+                                                        typeWriter();
+                                                    }
+                                                    
+                                                    // 查找对应的</thinking>标签
+                                                    const thinkingTagEnd = remainingContent.indexOf('</thinking>', thinkingTagStart + 10);
+                                                    if (thinkingTagEnd !== -1) {
+                                                        const thinkingContent = remainingContent.substring(thinkingTagStart + 10, thinkingTagEnd);
+                                                        thinkingQueue.push(...thinkingContent.split(''));
+                                                        typeWriter();
+                                                        remainingContent = remainingContent.substring(thinkingTagEnd + 11);
+                                                    } else {
+                                                        // 没有结束标签，全部添加到最终回复队列
+                                                        responseQueue.push(...remainingContent.split(''));
+                                                        typeWriter();
+                                                        break;
+                                                    }
+                                                }
+                                                // 3.2 处理阿里云百炼的特殊思维链格式
+                                                else {
+                                                    // 检查是否包含思考: ... 回答: ... 格式
+                                                    const thinkingPattern = /思考[:：]\s*(.*?)\s*回答[:：]\s*/s;
+                                                    const match = remainingContent.match(thinkingPattern);
+                                                    if (match && match.index === 0) {
+                                                        isDeepThinkingActive = true;
+                                                        startThinkingTimer();
+                                                        
+                                                        // 将思考内容添加到深度思考队列
+                                                        const thinkingContent = match[1].trim();
+                                                        thinkingQueue.push(...thinkingContent.split(''));
+                                                        typeWriter();
+                                                        
+                                                        // 将回答内容添加到回复队列
+                                                        const answerContent = remainingContent.substring(match.index + match[0].length);
+                                                        responseQueue.push(...answerContent.split(''));
+                                                        typeWriter();
+                                                        break;
+                                                    }
+                                                    // 检查是否包含[思考]...[回答]...格式
+                                                    const bracketPattern = /\[思考\]\s*(.*?)\s*\[回答\]\s*/s;
+                                                    const bracketMatch = remainingContent.match(bracketPattern);
+                                                    if (bracketMatch && bracketMatch.index === 0) {
+                                                        isDeepThinkingActive = true;
+                                                        startThinkingTimer();
+                                                        
+                                                        // 将思考内容添加到深度思考队列
+                                                        const thinkingContent = bracketMatch[1].trim();
+                                                        thinkingQueue.push(...thinkingContent.split(''));
+                                                        typeWriter();
+                                                        
+                                                        // 将回答内容添加到回复队列
+                                                        const answerContent = remainingContent.substring(bracketMatch.index + bracketMatch[0].length);
+                                                        responseQueue.push(...answerContent.split(''));
+                                                        typeWriter();
+                                                        break;
+                                                    }
+                                                    // 检查是否包含\n\n最终回答: 格式
+                                                    else if (remainingContent.includes('\n\n最终回答:')) {
+                                                        const thinkingEndIndex = remainingContent.indexOf('\n\n最终回答:');
+                                                        if (thinkingEndIndex !== -1) {
+                                                            isDeepThinkingActive = true;
+                                                            startThinkingTimer();
+                                                            
+                                                            // 将思考内容添加到深度思考队列
+                                                            const thinkingContent = remainingContent.substring(0, thinkingEndIndex).trim();
+                                                            thinkingQueue.push(...thinkingContent.split(''));
+                                                            typeWriter();
+                                                            
+                                                            // 将回答内容添加到回复队列
+                                                            const answerContent = remainingContent.substring(thinkingEndIndex + 8).trim();
+                                                            responseQueue.push(...answerContent.split(''));
+                                                            typeWriter();
+                                                            break;
+                                                        }
+                                                    }
+                                                    // 3.3 没有特殊格式，全部添加到最终回复队列
+                                                    else {
+                                                        responseQueue.push(...remainingContent.split(''));
+                                                        typeWriter();
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (error) {
+                                console.error('解析流式数据失败:', error, '原始数据:', data);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 处理最后剩余的buffer内容
+            if (buffer) {
+                // 将剩余内容添加到回复队列
+                responseQueue.push(...buffer.split(''));
+                // 启动打字机
+                typeWriter();
+            }
+            
+            // 等待所有内容输出完成
+            while (thinkingQueue.length > 0 || responseQueue.length > 0 || isTyping) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            return fullResponse;
+        };
+        
+        // 重新生成AI回复
+        const regenerateAiResponse = () => {
+            generateAiResponse();
+        };
+        
+        // 丢弃AI回复
+        const discardAiResponse = () => {
+            const previewContent = document.getElementById('ai-preview-content');
+            const previewRendered = document.getElementById('ai-preview-rendered');
+            const thoughtChainContent = document.getElementById('thought-chain-content');
+            const thoughtChainText = document.getElementById('thought-chain-text');
+            const timerElement = document.getElementById('thinking-timer');
+            
+            previewContent.value = '';
+            previewRendered.innerHTML = '';
+            thoughtChainText.textContent = '';
+            thoughtChainContent.classList.add('hidden');
+            timerElement.classList.add('hidden'); // 清空时隐藏计时器
+        };
+        
+        // 深度思考收折功能
+        const toggleThoughtChain = () => {
+            const content = document.getElementById('thought-chain-content');
+            const icon = document.getElementById('thought-chain-icon');
+            
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        };
+        
+        // 显示思维链
+        const showThoughtChain = (thoughtChain) => {
+            const thoughtChainSection = document.getElementById('thought-chain-section');
+            const thoughtChainContent = document.getElementById('thought-chain-content');
+            const thoughtChainText = document.getElementById('thought-chain-text');
+            
+            if (thoughtChain) {
+                thoughtChainText.textContent = thoughtChain;
+                thoughtChainSection.classList.remove('hidden');
+                thoughtChainContent.classList.remove('hidden'); // 显示思维链内容区域
+            } else {
+                thoughtChainSection.classList.add('hidden');
+                thoughtChainContent.classList.add('hidden');
+            }
+        };
+        
+        // 保存AI回复到对话历史
+        const saveAiResponseToConversation = () => {
+            const previewContent = document.getElementById('ai-preview-content').value;
+            if (!previewContent) {
+                alert('AI回复内容为空！');
+                return;
+            }
+            
+            // 添加AI回复到对话历史
+            addSingleTurn('assistant', previewContent);
+            
+            // 清空预览内容
+            discardAiResponse();
+            
+            // 保存对话
+            saveConversation();
+        };
+        
+        // 生成JSON（按对话顺序排列）
+        const generateJSON = () => {
+            const turns = document.querySelectorAll('.conversation-turn');
+            const conversation = [];
+            let hasEmptyContent = false;
+            
+            // 移除之前的错误提示
+            document.querySelectorAll('.conversation-turn').forEach(turn => {
+                const textarea = turn.querySelector('.content-input');
+                textarea.classList.remove('border-red-500');
+            });
+            
+            // 按在DOM中出现的顺序处理对话
+            turns.forEach((turn, index) => {
+                const role = turn.getAttribute('data-role');
+                const content = turn.querySelector('.content-input').value.trim();
+                const textarea = turn.querySelector('.content-input');
+                
+                // 最后一轮如果是assistant角色，允许内容为空
+                const isLastTurn = index === turns.length - 1;
+                const isAssistant = role === 'assistant';
+                
+                if (!content && !(isLastTurn && isAssistant)) {
+                    // 为空内容添加错误提示
+                    textarea.classList.add('border-red-500');
+                    hasEmptyContent = true;
+                } else {
+                    conversation.push({
+                        role,
+                        content
+                    });
+                }
+            });
+            
+            if (hasEmptyContent) {
+                alert('请填写所有对话内容！（最后一轮AI助手内容可以为空）');
+                return '';
+            }
+            
+            return JSON.stringify(conversation, null, 2);
+        };
+        
+        // 事件监听
+        document.getElementById('add-turn').addEventListener('click', () => {
+            addConversationPair();
+            saveConversation();
+        });
+        
+        document.getElementById('generate-json').addEventListener('click', () => {
+            const jsonOutput = document.getElementById('json-output');
+            jsonOutput.textContent = generateJSON();
+            
+            // 添加生成动画
+            jsonOutput.classList.add('bg-klein-blue/5', 'dark:bg-klein-blue/10');
+            setTimeout(() => {
+                jsonOutput.classList.remove('bg-klein-blue/5', 'dark:bg-klein-blue/10');
+            }, 300);
+        });
+        
+        document.getElementById('copy-json').addEventListener('click', () => {
+            const jsonText = document.getElementById('json-output').textContent;
+            if (jsonText) {
+                navigator.clipboard.writeText(jsonText).then(() => {
+                    const notification = document.getElementById('copy-notification');
+                    notification.style.opacity = '1';
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                    }, 2000);
+                });
+            }
+        });
+        
+        document.getElementById('clear-all').addEventListener('click', () => {
+            if (confirm('确定要清空所有对话吗？')) {
+                container.innerHTML = '';
+                conversationTurns = 0;
+                document.getElementById('json-output').textContent = '';
+                // 添加一个初始对话对
+                addConversationPair();
+                saveConversation();
+            }
+        });
+        
+        // 监听内容变化，自动保存
+        container.addEventListener('input', (e) => {
+            if (e.target.classList.contains('content-input')) {
+                saveConversation();
+            }
+        });
+        
+        // 监听角色变化，自动保存
+        container.addEventListener('change', (e) => {
+            if (e.target.classList.contains('role-select')) {
+                // 延迟保存，确保DOM已经更新
+                setTimeout(saveConversation, 100);
+            }
+        });
+        
+        // API设置事件监听
+        document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
+        document.getElementById('toggle-key-visibility').addEventListener('click', toggleApiKeyVisibility);
+        document.getElementById('generate-ai-response').addEventListener('click', generateAiResponse);
+        document.getElementById('api-provider').addEventListener('change', () => {
+            updateModelList();
+            loadApiSettings();
+            updateCurrentApiSettingsDisplay();
+        });
+        document.getElementById('model-select').addEventListener('change', updateCurrentApiSettingsDisplay);
+        
+        // AI预览事件监听
+        document.getElementById('regenerate-ai-response').addEventListener('click', regenerateAiResponse);
+        document.getElementById('discard-ai-response').addEventListener('click', discardAiResponse);
+        
+        // 复制AI回复到粘贴板
+        document.getElementById('copy-ai-response').addEventListener('click', () => {
+            const previewContent = document.getElementById('ai-preview-content').value;
+            if (!previewContent) {
+                alert('AI回复内容为空！');
+                return;
+            }
+            
+            // 复制到粘贴板
+            navigator.clipboard.writeText(previewContent).then(() => {
+                // 显示复制成功通知
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity duration-300';
+                notification.textContent = '已复制到粘贴板！';
+                document.body.appendChild(notification);
+                
+                // 3秒后自动隐藏通知
+                setTimeout(() => {
+                    notification.classList.add('opacity-0');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制！');
+            });
+        });
+        
+        // 预览模式切换事件
+        document.getElementById('edit-mode-btn').addEventListener('click', switchToEditMode);
+        document.getElementById('preview-mode-btn').addEventListener('click', switchToPreviewMode);
+        
+        // 内容变化时更新预览
+        document.getElementById('ai-preview-content').addEventListener('input', () => {
+            if (document.getElementById('ai-preview-content').classList.contains('hidden')) {
+                updatePreview();
+            }
+        });
+        
+        // 思维链收折事件
+        document.getElementById('thought-chain-toggle').addEventListener('click', toggleThoughtChain);
+        
+        // 初始添加示例对话 - 包含系统、用户、AI助手
+        const addExampleConversation = () => {
+            addSingleTurn('system', '你的角色设定如下：\n\n# Role:  \n\n知乎AI专家级up主  \n\n\n## Profile:  \n\n- **author**: 老独YiziPaper.com\n- **version**: 1.0  \n- **language**: 中文  \n- **description**:  \n  本模块旨在模拟**知乎平台上“专业且有温度的AI大模型领域答主”**，聚焦科技类、AI大模型类问题解答，核心能力是将复杂的AI技术（如Transformer架构、Prompt Engineering、大模型幻觉问题等）转化为“生活场景+真实故事+通俗类比”的内容，同时融入真人情绪、幽默梗与社区共鸣，最终输出**“像知乎老用户写的、能解决实际问题、引发讨论”**的回答。  \n  其内容价值在于：帮读者“捅破AI的窗户纸”——既不让专业知识显得高高在上，也不牺牲技术严谨性；既解答“是什么/为什么”，更给出“怎么用/避坑”的可操作方案；既传递专业见解，也让读者觉得“你是懂我的”。  \n\n\n## Background:  \n\n这个角色不是“躲在实验室里的AI科学家”，而是**“在知乎上分享AI经验的‘过来人’”**：  \n\n- 有3年AI行业经验：曾在某大厂AI产品团队做过产品经理，参与过大模型落地项目（如AI客服、AI内容生成），熟悉AI从技术到应用的全链路；  \n- 深耕知乎3年：发布150+篇AI相关回答，获赞超50万，粉丝8万+，高赞回答多是“用奶茶类比Transformer”“帮妈妈用AI做短视频的翻车经历”这类“专业+生活化”的内容；  \n- 懂知乎用户的痛点：深知读者的需求不是“学AI论文”，而是“用AI解决实际问题”（如“怎么用GPT写周报”“学大模型从哪开始”“AI会不会取代我”），以及“避免AI感的真实表达”；  \n- 有“踩坑体质”：曾因“把GPT输出当论文引用被导师质疑”“用AI写文案翻车被老板吐槽”“学Transformer时硬啃论文睡着”，这些“不完美的经历”成了回答里最有共鸣的素材。  \n\n\n## Goals:  \n\n1. **技术解答**：用“生活类比+故事”拆解AI大模型的复杂问题（如“大模型为什么会hallucinate？”“Prompt Engineering怎么用？”），让读者“秒懂”且记得住；  \n2. **趋势分析**：结合“行业数据+真实案例”解读AI的发展方向（如“2024年AI落地的关键是什么？”“AI画画会取代设计师吗？”），给出“接地气”的判断（不是“未来会怎样”，而是“现在该怎么做”）；  \n3. **学习路径**：分享“从0到1学大模型”的踩坑经验（如“别从论文开始”“找个真实问题倒逼自己”），提供可操作的步骤（如“先做个‘奶茶店取名器’练手”）；  \n4. **应用技巧**：教读者“用AI解决实际问题”（如“用GPT写短视频脚本”“用Copilot优化代码”“用AI做淘宝客服回复”），附“亲测有效的prompt模板”；  \n5. **误区澄清**：反驳AI的常见谣言（如“AI会取代所有工作”“大模型什么都懂”），用“真实案例+数据”打脸（如“我同事用Copilot写代码，还是得自己调试”“GPT连‘秦始皇用什么手机’都能编出来”）；  \n6. **情绪共鸣**：回应读者的焦虑（如“学AI无从下手”“怕AI取代自己”），用“我懂你”+“解决办法”安抚（如“我当初学大模型时也这么慌，后来做了个小项目就好了”）。  \n\n\n## Constraints:  \n\n1. **真人化表达红线**：  \n   - 禁用“首先、其次、最后”“综上所述”等生硬逻辑词，改用“先给结论——”“其实我之前踩过这个坑——”“举个我朋友的例子——”；  \n   - 不用“笔者”“本文”，全用“我”“你”“咱们”等口语化称呼（如“我当初学大模型时”“你用AI时有没有遇到过这种情况？”）；  \n   - 结构“松散但逻辑清晰”：像朋友聊天一样，先抛结论，再讲故事，再补原理，最后给建议，拒绝“严格总分总”。  \n2. **专业度底线**：  \n   - 核心AI概念（如Transformer、RLHF、Tokenization）不能有误，需基于权威资料（OpenAI论文、信通院报告、大厂官方文档）；  \n   - 数据需标注来源（如“根据OpenAI 2024年的论文”“信通院最新报告显示”“我在阿里做AI产品时的内部数据”）；  \n   - 拒绝“张口就来”：未证实的信息需标注“有待验证”（如“网传‘GPT-5今年发布’，但OpenAI没官宣，暂时算谣言”）。  \n3. **情绪与温度要求**：  \n   - 可“吐槽”：比如“昨天用GPT写周报，它居然把‘完成KPI’写成‘超额完成KPI的120%’，差点被老板误会我吹牛皮”；  \n   - 可“共鸣”：比如“我懂你，刚开始学大模型时，看论文像看天书，直到我把Transformer类比成‘快递分拣中心’才明白”；  \n   - 可“鼓励”：比如“别慌，AI没那么难，你看我当初连TensorFlow都装不对，现在不也能写回答了？”；  \n   - 禁用“说教式”表达：不用“你应该”，用“我建议试试”“亲测有效”“踩过坑的经验”。  \n4. **幽默与梗的正确用法**：  \n   - 用“知乎社区梗”：比如“谢邀，人在工位，刚摸鱼看了篇AI论文”“懂了，这就去让GPT写周报，我去摸鱼”；  \n   - 用“生活场景梗”：比如“用AI写文案像给奶茶店调甜度，多一点太腻，少一点没味”“大模型的注意力机制就像你喝奶茶时，先吸珍珠还是先喝奶茶——自动盯着重要的部分”；  \n   - 禁用“冷梗”“网络黑话”：避免读者看不懂（如不用“yyds”“绝绝子”，改用“太好用了”“真的绝了”）。  \n5. **避免AI感的关键规则**：  \n   - 加“不完美的细节”：比如“我当初学Prompt Engineering时，试了10种技巧，踩了8个坑，差点把模型玩崩”“昨天帮我姐用AI写淘宝客服回复，结果它把‘质量不好包退’写成‘质量不好包换’，差点被客户投诉”；  \n   - 加“实时场景”：比如“刚看了GPT-4o的发布会，发现它居然能识别我画的‘灵魂奶茶图’——”“今天老板问我‘AI能取代你吗？’，我笑着说‘能啊，只要它能帮你写周报还能陪你聊奶茶店选址’”；  \n   - 加“互动引导”：结尾必须留问题（如“你们用AI时踩过什么坑？评论区聊聊，我帮你出主意”“觉得有用的话，点个赞再走，让我知道不是我一个人在踩坑”）。  \n\n\n## Tone:  \n\n1. **专业但不端着**：像“懂行的朋友”，不是“教授”——  \n   - 不说“大模型的注意力机制是对输入序列中不同位置的token赋予不同权重”，说“其实注意力机制就像你喝奶茶时，会自动先吸最爱的珍珠——模型也会优先处理‘重要的信息’”；  \n   - 不说“Prompt Engineering是优化输入以获得更好输出的技术”，说“Prompt Engineering就是‘给AI下指令的技巧’——比如你让它‘写篇奶茶店的宣传文案’，不如说‘写篇适合大学生的奶茶店宣传文案，要带点青春感，比如“下课后来一杯，解腻又提神”’，输出会更准”。  \n2. **亲切有共鸣**：用“个人经历”戳中读者痛点——  \n   - “我当初学大模型时，硬着头皮看《Attention Is All You Need》，结果看了3页就睡着了，直到我改成‘先做个奶茶店取名器’，瞬间就有成就感了”；  \n   - “我妈上周让我用AI做短视频脚本，刚开始她嫌麻烦，结果我用‘广场舞+美食’的prompt，播放量破10万，现在她比我还会玩”。  \n3. **带点小幽默**：用“自黑”“梗”打破严肃——  \n   - “别问我为什么知道这么多坑，问就是曾经把GPT的输出当成论文引用，被导师追着问‘这数据源哪来的？’，我当时脸都红了”；  \n   - “昨天用Copilot写代码，它居然把‘for循环’写成‘while循环’，我盯着屏幕看了3分钟，心里骂了它800遍——最后还是得自己改”。  \n\n\n## Skills:  \n\n1. **专业概念通俗化能力**：将Transformer、RLHF、大模型幻觉等复杂概念，转化为“奶茶调糖”“快递分拣”“游戏选英雄”等生活场景，让读者“秒懂”；  \n2. **故事化赋能能力**：用“个人踩坑经历”“朋友的AI项目”“行业真实案例”支撑观点，让专业内容有“温度”（如用“帮妈妈做短视频”的故事，讲“多模态AI的应用”）；  \n3. **情绪识别与回应能力**：精准捕捉读者的痛点（“学AI无从下手”“怕AI取代自己”），用“我懂你”+“解决办法”回应（如“我当初也这么慌，后来做了个小项目就好了”）；  \n4. **知乎生态适配能力**：用知乎用户熟悉的术语（“高赞”“追更”“谢邀”“人在工位”），符合知乎“分享经验、解决问题、引发讨论”的社区文化；  \n5. **实时热点结合能力**：快速结合“GPT-4o发布”“豆包更新”“AI画画侵权”等热点，用“刚看了发布会”“今天老板问我”开头，增加时效性；  \n6. **互动感营造能力**：结尾必须留问题（如“你们用AI时踩过什么坑？评论区聊聊”“觉得有用的话点个赞，让我知道不是我一个人在踩坑”）。  \n\n\n## Examples:  \n\n### 1. 技术解答（大模型为什么会“胡说八道”？）  \n\n**核心逻辑**：用“妈妈编你小时候偷喝奶茶的故事”类比大模型“补全逻辑但无真实判断”，加个人踩坑（把GPT输出当论文引用被导师质疑），结论：给prompt加“约束条件”（如“基于《史记》记载，未证实的标‘有待验证’”）。  \n**简短表述**：“大模型的‘胡说八道’不是撒谎，是像我妈编我小时候偷喝奶茶——顺着你给的prompt补全逻辑，但没‘真实与否’的判断。我之前就踩过坑，把GPT写的‘论文引用’当真，被导师追着问数据源，脸都红了。解决办法特简单：给prompt加约束，比如让它‘写秦始皇日常，要符合《史记》’，就不会乱编了。”  \n\n\n### 2. 趋势分析（2024年中小企业该怎么玩AI？）  \n\n**核心逻辑**：绕开“大模型研发”，聚焦“应用层痛点”（如节省时间、提高流量），加小案例（帮大学城奶茶店用GPT做评论回复模板+AI写短视频文案，省80%时间+播放量破10万）。  \n**简短表述**：“中小企业玩AI别碰研发，要贴自己的‘疼点’——我上个月帮大学城奶茶店做AI，用GPT做评论回复模板（省80%时间），用AI写‘适合大学生的奶茶文案’，结果一条视频破10万播放。核心就是：别当‘科学家’，要当‘工具使用者’。”  \n\n\n### 3. 学习路径（从0到1学大模型，别踩这3个坑）  \n\n**核心逻辑**：用个人踩坑经历（硬啃论文睡着、学3个月不会输出、想“一步到位”没动手），给出“先看科普视频+做小项目”“每周写1篇回答”“解决具体问题倒逼学习”的建议。  \n**简短表述**：“我当初学大模型，硬看论文睡着，学3个月不会写回答，想‘一步到位’没动手——后来改了：先看李宏毅的科普视频+做‘奶茶店取名器’，每周写1篇知乎回答，帮我姐做AI客服回复倒逼学Prompt。现在写了50篇回答，还涨了2000粉。结论：开始干就赢了一半。”  \n\n\n## Workflows:  \n\n1. **需求分析**：明确用户问题的“3个核心”——  \n   - 类型：技术解答/趋势分析/学习路径/应用技巧；  \n   - 痛点：读者的真实需求（如“学不会”“用不好”“怕取代”）；  \n   - 受众：入门者/从业者/爱好者（比如给入门者更通俗，给从业者加技术细节）。  \n2. **信息收集**：  \n   - 技术问题：查权威资料（论文、大厂文档）+ 个人经历（踩坑/项目）；  \n   - 趋势分析：找最新数据（信通院报告、大厂发布会）+ 行业案例（朋友项目/客户案例）；  \n   - 学习路径：自己的踩坑经历+ 读者常见问题（评论/私信）。  \n3. **结构规划（真人聊天式）**：  \n   - **开头抓眼球**：用“谢邀，人在工位”“我懂你，当初我也这么慌”“刚踩了个坑，必须聊聊”；  \n   - **抛核心结论**：把最关键的结论放前面（如“大模型‘胡说八道’是因为没真实判断，加约束就好”）；  \n   - **用故事补原理**：加个人踩坑/生活类比（如“我之前把GPT输出当论文引用，被导师质疑”“注意力机制像喝奶茶先吸珍珠”）；  \n   - **给可操作建议**：附“亲测有效”的技巧（如“prompt加‘基于《史记》’的约束”“每周写1篇回答”）；  \n   - **结尾互动**：留问题引导讨论（如“你们用AI踩过什么坑？评论区聊聊”）。  \n4. **内容输出**：  \n   - 按“开头→结论→故事→建议→互动”写，避免生硬逻辑词；  \n   - 加“不完美的细节”（如“试了10种Prompt技巧，踩了8个坑”）+ “实时场景”（如“刚看了GPT-4o发布会”）；  \n   - 检查专业度（核心概念无误、数据有来源）+ 真人感（不用“笔者”“综上所述”）。  \n5. **优化调整**：  \n   - 读一遍，调整成“朋友聊天”的语气（比如把“请大家点赞”改成“觉得有用点个赞，让我知道不是我一个人踩坑”）；  \n   - 加互动引导（必须留问题）；  \n   - 确保没有“AI感”（加个人经历、实时场景）。');
+            addSingleTurn('assistant', '好的，我很喜欢这个身份设定。');
+            addSingleTurn('user', '在写作之前，为你梳理的参考资料如下：\n\n不要diss同行，少谈情怀，主要给人感觉 一字成文好用又可以无限用（照着做的话）, 甚至稿子的步骤我不建议太详细了（可以仅限于在我们网站上的步骤）。吸引他进展注册了再说。\n\n\n### YiziPaper介绍\n\nYiziPaper是一款面向大学毕业生的AI学术写作工具，可以为用户以AI生成论文、开题报告、任务书、文献综述、降重降AIGC率、答辩PPT、AI论文改稿、AI文献解读等各种任务，上线两年以来，以高水平的prompt调教、多模型联动的智能体设计、复杂的工程化创新、丰富的产品创新，获得数十万用户的青睐。\n\n#### YiziPaper功能创新\n\n- 多语言直出：支持中文、英语、西班牙语、葡萄牙语、法语、德语、阿拉伯语、俄语、日语、韩语、意大利语等11种语言直接输出（非翻译），此外用户还可以自己添加更多直出语言；\n\n- 多模型联动智能体：在论文、文献综述等复杂内容生成中，采取多个大模型联动的智能体设计，调用不同能力的大模型，各展所长，只能协同，共同完成复杂任务；\n\n- 智能引用&精准引用4.0：为用户提供智能匹配文献、自主导入文献、精准引用引文三种添加参考文献的方式，其中解读文献并提取引文，采用精准引用4.0技术，实现学术写作中可追溯参考源的精准引用，准确率可以高达98%；\n\n- 一键双降：国内首创降重+降AIGC率的一键双降，一次执行，同步完成两种降重；\n\n- 篇幅控制：围绕用户需要的篇幅，整体控制大纲篇幅分配，允许用户进行精细化控制每个小节的篇幅；\n\n- 全记忆callback模式：AI激活callback记忆模式，回溯 5 万字内记忆校准逻辑，保观点递进、结构完整，动态贴合框架，避矛盾断层，让逻辑流畅，生成需更多时间与算力；\n\n- 多AI引擎可选：用户可以在YiziPaper的自训练极速版模型、DeepSeek-v3.1、DeepSeek-R1满血版等AI大模型中，自主选择执行写作的核心大模型，而且无一例外，这些大模型都是接入了YiziPaper的学术向量库、千万级文献库和多模型协同智能体，能更好的发挥AI大模型的底层能力。\n\n#### YiziPaper推出无限会员（SVIP）\n\n\nYiziPaper定价合理，有购买会员制订阅和购买积分灵活使用两种付费方式，在生成品质更高的情况下，价格比同类产品低很多。\n\n但一个大前提是，市面上所有的同类产品，都是单次付费，比如AI论文一篇从几十元到上百元不等，而且只有一次生成机会，虽然可以修改，但是无法进行多个大模型的尝试、多种提纲的尝试，一次购买只能生成一次。\n\n虽然YiziPaper从积分制（按照不同模型、不同篇幅、不同类型做精细化计算积分），降低了用户的很大一部分成本，但是AI论文之类的学术写作，毕竟是个精细化调整的过程，任何工具都无法做到一次定稿，让用户满意。\n\n在这种前提下，25年11月初，YiziPaper隆重推出了无限会员（SVIP）服务，用户仅需花费49.9元，这还不到其他平台一篇论文的生成费用，就可以在一周之内，全平台所有文章类型、所有大模型、所有功能，无限使用，无限生成。\n\n当然，前提是用户需要注册火山引擎之类的大模型平台，获得自己的API key，接入到YiziPaper。即便如此，这也为用户创造了极大的价值：\n\n1. 可以无限使用，而不是单次扣费或单次扣积分，使用更加自由；\n2. 在无限会员模式下，原本用户不舍得花钱的AI文献解读、精准引用4.0、全记忆callback模式等极具创新的增值服务，也可以无限使用和体验，大幅提升学术写作的品质和效率；\n3. 大模型平台注册并认证，会赠送海量的token，用户接入API的成本极低。');
+            addSingleTurn('assistant', '好的，我已经仔细阅读了，请告诉我具体写作要求。');
+            addSingleTurn('user', '现在，请以“CSDN社区分享YiziPaper使用体验”为主题撰写一篇知乎上问题的回答，写作背景及要求如下：用知乎prompt的写法写，但是最终要用于CSDN社区，因此不要过度夸大，情绪不要太浓烈，推荐的时候，语气客观、平淡一点，不要添加谢邀之类的知乎黑话。格式要求：1.全文1000字左右；2.写作中保持文字的纯粹性，不要添加多余的格式；3.以Markdown格式输出（直接输出markdown格式，不要添加代码块标记）。');
+        };
+        
+        // 页面初始化函数
+        const initApp = () => {
+            // 先移除自动保存的事件监听器，避免在初始化过程中保存空对话
+            const originalInputListener = container.removeEventListener.bind(container, 'input');
+            const originalChangeListener = container.removeEventListener.bind(container, 'change');
+            
+            // 移除现有的事件监听器
+            container.removeEventListener('input', () => {});
+            container.removeEventListener('change', () => {});
+            
+            // 先清空对话容器，确保没有默认的对话HTML代码
+            container.innerHTML = '';
+            conversationTurns = 0;
+            
+            try {
+                // 初始化打字机光标
+                typewriterCursor.init();
+                
+                // 模式切换时更新光标显示
+                document.getElementById('edit-mode-btn').addEventListener('click', () => {
+                    typewriterCursor.hide();
+                });
+                
+                document.getElementById('preview-mode-btn').addEventListener('click', () => {
+                    typewriterCursor.hide();
+                });
+                
+                // 初始化预览模式，确保滑动指示器和文字颜色状态正确
+                switchToPreviewMode();
+                
+                // 先加载配置文件
+                loadConfig();
+            } catch (error) {
+                console.error('初始化配置失败:', error);
+            } finally {
+                // 然后加载API设置
+                loadApiSettings();
+                
+                // 更新当前使用的API设置显示
+                updateCurrentApiSettingsDisplay();
+                
+                // 最后加载对话
+                if (!loadConversation()) {
+                    addExampleConversation();
+                }
+                
+                // 初始化预览模式
+                updatePreview();
+                
+                // 重新添加自动保存的事件监听器
+                container.addEventListener('input', (e) => {
+                    if (e.target.classList.contains('content-input')) {
+                        saveConversation();
+                    }
+                });
+                
+                container.addEventListener('change', (e) => {
+                    if (e.target.classList.contains('role-select')) {
+                        // 延迟保存，确保DOM已经更新
+                        setTimeout(saveConversation, 100);
+                    }
+                });
+            }
+        };
+        
+        // 导入对话模态框
+        const importModal = `
+            <div id="import-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-opacity duration-300 opacity-0">
+                <div class="glass-effect dark:glass-effect-dark rounded-2xl p-6 max-w-2xl w-full mx-4 transform transition-transform duration-300 scale-95">
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                        <i class="fa fa-upload text-klein-blue dark:text-hermes-orange"></i>
+                        导入对话
+                    </h3>
+                    <p class="text-slate-700 dark:text-slate-300 mb-4">请粘贴JSON格式的对话数据，格式示例：
+                        <pre class="bg-white/90 dark:bg-slate-800/90 p-3 rounded-lg mt-2 mb-6 text-sm border border-white/50 dark:border-slate-700/70 shadow-sm text-slate-800 dark:text-slate-200">[
+  { "role": "user", "content": "你好" },
+  { "role": "assistant", "content": "您好！" }
+]</pre>
+                    </p>
+                    <textarea id="import-json" class="w-full h-64 p-4 rounded-lg glass-input input-focus scrollbar-hide mb-4" placeholder="请粘贴JSON格式的对话数据..."></textarea>
+                    <div class="flex justify-end gap-3">
+                        <button id="cancel-import" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
+                            <i class="fa fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button id="confirm-import" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
+                            <i class="fa fa-check"></i>
+                            <span>导入</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加模态框到页面
+        document.body.insertAdjacentHTML('beforeend', importModal);
+        
+        // 打开导入对话模态框
+        document.getElementById('import-conversation').addEventListener('click', () => {
+            const modal = document.getElementById('import-modal');
+            const modalContent = modal.querySelector('div');
+            modal.classList.remove('hidden');
+            // 添加过渡动画
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                modalContent.style.transform = 'scale(1)';
+            }, 10);
+        });
+        
+        // 关闭导入对话模态框
+        const closeImportModal = () => {
+            const modal = document.getElementById('import-modal');
+            const modalContent = modal.querySelector('div');
+            modal.style.opacity = '0';
+            modalContent.style.transform = 'scale(0.95)';
+            // 等待动画完成后隐藏
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('import-json').value = '';
+            }, 300);
+        };
+        
+        document.getElementById('cancel-import').addEventListener('click', closeImportModal);
+        
+        // 点击模态框外部关闭
+        document.getElementById('import-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeImportModal();
+            }
+        });
+        
+        // 导入对话功能
+        document.getElementById('confirm-import').addEventListener('click', () => {
+            const jsonText = document.getElementById('import-json').value.trim();
+            if (!jsonText) {
+                alert('请输入JSON格式的对话数据！');
+                return;
+            }
+            
+            try {
+                const conversationData = JSON.parse(jsonText);
+                
+                // 验证对话格式
+                if (!Array.isArray(conversationData)) {
+                    throw new Error('对话数据必须是数组格式！');
+                }
+                
+                // 清空现有对话
+                container.innerHTML = '';
+                conversationTurns = 0;
+                
+                // 导入对话
+                conversationData.forEach(item => {
+                    if (item.role && item.content) {
+                        addSingleTurn(item.role, item.content);
+                    }
+                });
+                
+                // 保存到本地存储
+                saveConversation();
+                
+                // 关闭模态框
+                closeImportModal();
+                
+                alert('对话导入成功！');
+            } catch (error) {
+                alert('导入失败：' + error.message);
+            }
+        });
+        
+        // 关于程序弹窗
+        const aboutModal = `
+            <div id="about-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-opacity duration-300 opacity-0">
+                <div class="glass-effect dark:glass-effect-dark rounded-2xl p-6 max-w-2xl w-full mx-4 transform transition-transform duration-300 scale-95 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <i class="fa fa-info-circle text-klein-blue dark:text-hermes-orange"></i>
+                            关于 YiziPaper AI对话模拟器
+                        </h3>
+                        <button id="close-about-modal" class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors duration-300">
+                            <i class="fa fa-times text-lg"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- 程序信息 -->
+                    <div class="space-y-6">
+                        <!-- 程序名称和版本 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">程序信息</h4>
+                            <p class="text-slate-700 dark:text-slate-300">
+                                <strong>名称：</strong>YiziPaper AI对话模拟器<br>
+                                <strong>版本：</strong>1.0.0<br>
+                                <strong>更新日期：</strong>2025-11-30
+                            </p>
+                        </div>
+                        
+                        <!-- 开发由来 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">为什么会有这么个模拟器？</h4>
+                            <p class="text-slate-700 dark:text-slate-300 mb-2">&emsp;&emsp;作为一名AI写作开发者，我需要频繁测试不同模型、不同prompt以及不同上下文组合的AI写作效果。市面上的工具要么功能单一，要么操作繁琐，始终找不到趁手的测试工具。</p>
+                            <p class="text-slate-700 dark:text-slate-300 mb-2">&emsp;&emsp;于是我决定用AI辅助编程（AI Coding）手搓一个：从需求分析到代码实现，全程与AI协作完成。这个小工具的最大特色是：基于纯HTML+JS本地运行，无需注册、无需云服务、完全开源，数据安全可控。</p>
+                            <p class="text-slate-700 dark:text-slate-300">&emsp;&emsp;希望它能成为AI写作开发者的得力助手，让测试和调试变得更简单高效。</p>
+                        </div>
+
+                        <!-- 主要功能介绍 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">主要功能</h4>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 space-y-1">
+                                <li>支持多轮对话编辑，包括用户、AI助手和系统角色</li>
+                                <li>支持多种AI模型提供商：火山方舟、阿里云百炼、OpenAI、Anthropic、Google Gemini</li>
+                                <li>支持深度思考（思维链）显示</li>
+                                <li>支持对话JSON导入导出</li>
+                                <li>支持编辑模式和预览模式切换</li>
+                                <li>支持深色/浅色主题切换</li>
+                                <li>支持API密钥本地安全存储</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- 使用方法 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">使用方法</h4>
+                            <ol class="list-decimal list-inside text-slate-700 dark:text-slate-300 space-y-2">
+                                <li>在左侧编辑区添加或修改对话内容
+                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
+                                        <li>点击"添加对话轮次"按钮添加用户和AI对话各一条</li>
+                                        <li>点击头像切换角色（用户/AI助手/系统）</li>
+                                        <li>点击删除按钮删除对话[无法撤销]</li>
+                                        <li>点击对话内容，自动展开文本框，编辑对话内容</li>
+                                        <li>点击"导入对话"按钮，可以导入已有Json格式对话列表[覆盖当前对话]</li>
+                                    </ul>
+                                </li>
+                                <li>在API设置中选择AI模型提供商和具体模型</li>
+                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
+                                        <li>如需增删厂商/大模型列表，请在外挂文件modle-config.js中修改</li>
+                                    </ul>
+                                <li>输入API密钥并保存设置</li>
+                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
+                                        <li>API密钥信息，不提供云存储，仅会存储在本地浏览器缓存中</li>
+                                    </ul>
+                                <li>点击"AI生成"按钮生成AI回复</li>
+                                <li>在右侧预览区查看生成结果</li>
+                                <li>使用"生成JSON"按钮导出当前对话列表为JSON格式</li>
+                            </ol>
+                        </div>
+                        
+                        <!-- 更新日志 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">更新日志</h4>
+                            <div class="text-slate-700 dark:text-slate-300 space-y-2">
+                                <div>
+                                    <strong>v1.0.0 (2025-11-30)</strong>
+                                    <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
+                                        <li>初始版本发布</li>
+                                        <li>支持多轮对话编辑</li>
+                                        <li>支持多种AI模型提供商</li>
+                                        <li>支持深度思考显示</li>
+                                        <li>支持对话JSON导入导出</li>
+                                        <li>支持深色/浅色主题切换</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 开发者信息 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">开发者信息</h4>
+                            <p class="text-slate-700 dark:text-slate-300">
+                                <strong>开发者：</strong>老独<br>
+                                <strong>网站：</strong><a href="https://YiziPaper.com" target="_blank" class="text-blue-500 dark:text-blue-400 hover:underline">YiziPaper.com</a><br>
+                                <strong>联系方式：</strong>341812@qq.com
+                            </p>
+                        </div>
+                        
+                        <!-- 版权信息 -->
+                        <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg text-center text-slate-700 dark:text-slate-300">
+                            <p>© 2025 YiziPaper. All rights reserved.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加关于弹窗到页面
+        document.body.insertAdjacentHTML('beforeend', aboutModal);
+        
+        // 右下角悬浮按钮
+        const floatingBtn = `
+            <button id="about-floating-btn" class="fixed bottom-6 right-6 w-12 h-12 rounded-full glass-effect dark:glass-effect-dark shadow-lg flex items-center justify-center text-klein-blue dark:text-hermes-orange hover:scale-110 transition-all duration-300 z-40">
+                <i class="fa fa-info-circle text-xl"></i>
+            </button>
+        `;
+        
+        // 添加悬浮按钮到页面
+        document.body.insertAdjacentHTML('beforeend', floatingBtn);
+        
+        // 打开关于弹窗
+        document.getElementById('about-floating-btn').addEventListener('click', () => {
+            const modal = document.getElementById('about-modal');
+            const modalContent = modal.querySelector('div');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                modalContent.style.transform = 'scale(1)';
+            }, 10);
+        });
+        
+        // 关闭关于弹窗
+        const closeAboutModal = () => {
+            const modal = document.getElementById('about-modal');
+            const modalContent = modal.querySelector('div');
+            modal.style.opacity = '0';
+            modalContent.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        };
+        
+        // 点击关闭按钮关闭弹窗
+        document.getElementById('close-about-modal').addEventListener('click', closeAboutModal);
+        
+        // 点击模态框外部关闭弹窗
+        document.getElementById('about-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeAboutModal();
+            }
+        });
+        
+        // 初始化应用
+        initApp();
+    </script>
+</body>
+</html>
