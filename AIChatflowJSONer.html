@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <script src="model-config.js"></script>
+    <script src="markdown-renderer.js"></script>
+    <script src="save-history.js"></script>
+    <script src="conversation-storage.js"></script>
     
     <!-- 配置Tailwind自定义颜色和字体 -->
     <script>
@@ -34,6 +37,195 @@
             }
         }
     </script>
+    
+    <style>
+        /* 确保对话容器不会裁剪按钮 */
+        .conversation-turn {
+            overflow: visible !important;
+        }
+        /* 确保对话内容容器不会裁剪按钮 */
+        .conversation-turn > div:last-child {
+            overflow: visible !important;
+        }
+        /* 隐藏默认的删除按钮，使用合并后的按钮组中的删除按钮 */
+        /* 只隐藏绝对定位的删除按钮，不隐藏操作按钮组中的删除按钮 */
+        .absolute .delete-turn {
+            display: none;
+        }
+        /* 操作按钮样式 - 统一简单风格 */
+        .action-btn {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 0.375rem;
+            padding: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            height: 1.75rem;
+            width: 1.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #1e293b;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        /* 操作按钮hover效果 - 简单效果 */
+        .action-btn:hover {
+            background-color: rgba(255, 255, 255, 1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            transform: translateY(-0.125rem);
+        }
+        /* Dark主题操作按钮 */
+        .dark .action-btn {
+            background-color: rgba(51, 65, 85, 0.9);
+            border: 1px solid rgba(71, 85, 105, 0.8);
+            color: #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        /* Dark主题操作按钮hover效果 */
+        .dark .action-btn:hover {
+            background-color: rgba(71, 85, 105, 1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            transform: translateY(-0.125rem);
+        }
+        /* === 简化解决方案：确保按钮正确显示和定位 === */
+        
+        /* 1. 基础样式：清除所有可能的干扰 */
+        * {
+            box-sizing: border-box;
+        }
+        
+        /* 2. 确保所有容器都能显示按钮，不会被裁剪 */
+        .conversation-turn,
+        .relative,
+        .conversation-turn > div,
+        .conversation-turn > div > div {
+            overflow: visible !important;
+        }
+        
+        /* 3. 按钮组基础样式 */
+        .conversation-actions {
+            position: absolute;
+            top: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 5000;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* 4. 为AI助手角色设置按钮位置 */
+        .conversation-turn[data-role="assistant"] .conversation-actions {
+            top: 35px;
+            left: -35px;
+            right: auto;
+        }
+        
+        /* 5. 为系统角色设置按钮位置 */
+        .conversation-turn[data-role="system"] .conversation-actions {
+            top: 35px;
+            left: -35px;
+            right: auto;
+        }
+        
+        /* 6. 为用户角色设置按钮位置 */
+        .conversation-turn[data-role="user"] .conversation-actions {
+            top: 35px;
+            left: -35px;
+            right: auto;
+        }
+        
+        /* 7. 点击文本框时显示按钮组 - 最高优先级 */
+        .conversation-turn.expanded .conversation-actions {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        /* === 恢复优雅的滚动条设计：默认隐藏，hover显示 === */
+        /* 将完整的scrollbar-hide样式移到普通style标签中，确保在任何情况下都能生效 */
+        
+        /* 1. 定义scrollbar-hide类：默认隐藏滚动条，hover显示 */
+        .scrollbar-hide {
+            /* 默认隐藏滚动条 - Firefox */
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+            
+            /* 默认隐藏滚动条 - IE/Edge */
+            -ms-overflow-style: none;
+            
+            /* 调整内边距，避免内容被滚动条遮挡 */
+            margin-right: -6px;
+            padding-right: 10px;
+            transition: all 0.2s ease;
+        }
+        
+        /* 2. WebKit浏览器（Chrome/Safari）默认隐藏滚动条 */
+        .scrollbar-hide::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            transition: width 0.2s ease, height 0.2s ease;
+        }
+        
+        /* 3. hover时显示滚动条 - WebKit浏览器 */
+        .scrollbar-hide:hover::-webkit-scrollbar {
+            width: 6px;  /* 显示垂直滚动条 */
+            height: 0;   /* 始终隐藏横向滚动条 */
+        }
+        
+        /* 4. hover时显示滚动条 - Firefox */
+        .scrollbar-hide:hover {
+            scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+        }
+        
+        /* 5. 滚动条轨道样式 */
+        .scrollbar-hide::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        /* 6. 滚动条滑块样式 - 默认透明 */
+        .scrollbar-hide::-webkit-scrollbar-thumb {
+            background-color: transparent;
+            border-radius: 3px;
+            transition: background-color 0.2s ease;
+        }
+        
+        /* 7. hover时滑块样式 - WebKit浏览器 */
+        .scrollbar-hide:hover::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+        }
+        
+        /* 8. 滑块hover样式 - WebKit浏览器 */
+        .scrollbar-hide::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(156, 163, 175, 0.7);
+        }
+        
+        /* 9. Dark主题 - hover时滚动条颜色 - Firefox */
+        .dark .scrollbar-hide:hover {
+            scrollbar-color: rgba(243, 100, 30, 0.5) transparent;
+        }
+        
+        /* 10. Dark主题 - hover时滑块颜色 - WebKit浏览器 */
+        .dark .scrollbar-hide:hover::-webkit-scrollbar-thumb {
+            background-color: rgba(243, 100, 30, 0.5);
+        }
+        
+        /* 11. Dark主题 - 滑块hover颜色 - WebKit浏览器 */
+        .dark .scrollbar-hide::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(243, 100, 30, 0.7);
+        }
+        
+        /* 12. 确保对话容器的基本滚动功能 */
+        #conversation-container {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            max-height: 70vh !important;
+        }
+    </style>
     
     <style type="text/tailwindcss">
         @layer utilities {
@@ -134,15 +326,15 @@
                 backdrop-filter: blur(16px);
                 border: 1px solid rgba(197, 197, 255, 0.5);
                 border-radius: 0.5rem;
-                padding: 0.625rem 1rem;
+                padding: 0.5rem 0.75rem;
                 font-size: 0.875rem;
                 font-weight: 500;
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-                height: 2.25rem;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                white-space: nowrap;
             }
             
             /* 默认按钮文字颜色 */
@@ -264,54 +456,72 @@
             .typewriter-cursor-blink {
                 animation: blink 1s infinite;
             }
+            /* 滚动条基础样式 - 修复垂直滚动条 */
+            .scrollbar-hide::-webkit-scrollbar {
+                width: 6px;  /* 垂直滚动条宽度 */
+                height: 0;    /* 隐藏横向滚动条 */
+                background: transparent;
+            }
+            
+            /* 滚动条hover时显示垂直滚动条 */
+            .scrollbar-hide:hover::-webkit-scrollbar {
+                width: 6px;  /* hover时显示垂直滚动条 */
+                height: 0;   /* 始终隐藏横向滚动条 */
+            }
+            
             /* 滚动条轨道样式 */
             .scrollbar-hide::-webkit-scrollbar-track {
                 background: transparent;
             }
+            
             /* 滚动条滑块样式 */
             .scrollbar-hide::-webkit-scrollbar-thumb {
-                background-color: rgba(156, 163, 175, 0.5);
+                background-color: transparent;
                 border-radius: 3px;
                 transition: background-color 0.2s ease;
             }
+            
+            /* 滚动条hover时滑块样式 */
+            .scrollbar-hide:hover::-webkit-scrollbar-thumb {
+                background-color: rgba(156, 163, 175, 0.5);
+            }
+            
             /* 滚动条滑块hover样式 */
             .scrollbar-hide::-webkit-scrollbar-thumb:hover {
                 background-color: rgba(156, 163, 175, 0.7);
             }
-            /* Dark主题滚动条滑块样式 */
-            .dark .scrollbar-hide::-webkit-scrollbar-thumb {
+            
+            /* Dark主题滚动条hover时滑块样式 */
+            .dark .scrollbar-hide:hover::-webkit-scrollbar-thumb {
                 background-color: rgba(243, 100, 30, 0.5);
             }
+            
             /* Dark主题滚动条滑块hover样式 */
             .dark .scrollbar-hide::-webkit-scrollbar-thumb:hover {
                 background-color: rgba(243, 100, 30, 0.7);
             }
+            
             /* Firefox浏览器默认隐藏 */
             .scrollbar-hide {
                 scrollbar-width: thin;
                 scrollbar-color: transparent transparent;
                 transition: scrollbar-color 0.2s ease;
+                overflow-x: hidden;
             }
+            
             /* Firefox浏览器hover显示 */
             .scrollbar-hide:hover {
                 scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
             }
+            
             /* Dark主题Firefox滚动条hover显示 */
             .dark .scrollbar-hide:hover {
                 scrollbar-color: rgba(243, 100, 30, 0.5) transparent;
             }
+            
             /* 强制隐藏横向滚动条 */
             #conversation-container {
                 overflow-x: hidden;
-            }
-            .scrollbar-hide {
-                overflow-x: hidden;
-            }
-            .scrollbar-hide::-webkit-scrollbar {
-                height: 0;
-            }
-            .scrollbar-hide:hover::-webkit-scrollbar {
-                height: 0;
             }
             /* 微信风格气泡 - 修复版 */
             .wechat-bubble-user {
@@ -340,48 +550,15 @@
             .dark .content-input:focus {
                 background-color: #1f2937 !important;
             }
-            /* 删除按钮默认隐藏，hover时显示 */
-            .delete-turn {
+            /* 文本框点击展开样式 */
+            .content-input:focus {
+                min-height: 150px;
+            }
+            .content-input:focus + .absolute {
                 opacity: 0;
-                transition: all 0.2s ease;
-                background-color: rgba(206, 226, 255, 0.3);
-                backdrop-filter: blur(16px);
-                border: 1px solid rgba(197, 197, 255, 0.5);
-                border-radius: 0.5rem;
-                padding: 0.5rem;
-                font-size: 0.75rem;
-                font-weight: 500;
-                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-                height: 2rem;
-                width: 2rem;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                color: #1e293b;
             }
-            .conversation-turn:hover .delete-turn {
-                opacity: 1;
-            }
-            /* 删除按钮hover效果 */
-            .delete-turn:hover {
-                background-color: rgba(255, 255, 255, 0.5);
-                border-color: rgba(255, 255, 255, 0.7);
-                color: #002FA7;
-                box-shadow: 0 10px 15px -3px rgba(171, 172, 255, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                transform: scale(1.05) translateY(-0.125rem);
-            }
-            /* Dark主题删除按钮 */
-            .dark .delete-turn {
-                background-color: rgba(51, 65, 85, 0.6);
-                border-color: rgba(71, 85, 105, 0.7);
-                color: #f8fafc;
-            }
-            .dark .delete-turn:hover {
-                background-color: rgba(71, 85, 105, 0.8);
-                border-color: rgba(100, 116, 139, 0.9);
-                color: #F3641E;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                transform: scale(1.05) translateY(-0.125rem);
+            .conversation-turn.expanded {
+                position: relative;
             }
             /* 删除按钮提示文字 */
             .delete-turn + div {
@@ -447,9 +624,9 @@
                     <i class="fa fa-plus"></i>
                     <span>添加对话轮次</span>
                 </button>
-                <button id="import-conversation" class="flex items-center gap-2 px-4 py-2 glass-btn">
-                    <i class="fa fa-upload"></i>
-                    <span>导入对话</span>
+                <button id="conversation-manager" class="flex items-center gap-2 px-4 py-2 glass-btn">
+                    <i class="fa fa-cog"></i>
+                    <span>对话管理</span>
                 </button>
                 <button id="clear-all" class="flex items-center gap-2 px-4 py-2 glass-btn">
                     <i class="fa fa-trash-o"></i>
@@ -477,6 +654,7 @@
                             <select id="api-provider" class="flex-1 glass-input input-focus text-slate-800 dark:text-white">
                             <option value="volcengine">火山方舟</option>
                             <option value="aliyun">阿里云百炼</option>
+                            <option value="zhipu">智谱AI</option>
                             <option value="openai">OpenAI</option>
                             <option value="anthropic">Anthropic</option>
                             <option value="google">Google Gemini</option>
@@ -574,22 +752,26 @@
                         </p>
                     </div>
                     
-                    <div class="flex justify-end gap-3 mt-4">
-                        <button id="generate-ai-response" class="px-5 py-2.5 glass-btn flex items-center justify-center gap-2">
+                    <div class="flex justify-end gap-2 mt-4">
+                        <button id="generate-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
                             <i class="fa fa-magic"></i>
-                            <span>AI生成</span>
+                            <span>生成</span>
                         </button>
                         <button id="regenerate-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
                             <i class="fa fa-refresh"></i>
-                            <span>重新生成</span>
+                            <span>重新</span>
                         </button>
                         <button id="discard-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
                             <i class="fa fa-times"></i>
-                            <span>清空结果</span>
+                            <span>清空</span>
+                        </button>
+                        <button id="insert-to-conversation" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
+                            <i class="fa fa-plus-circle"></i>
+                            <span>插入对话</span>
                         </button>
                         <button id="copy-ai-response" class="px-4 py-2 glass-btn flex items-center justify-center gap-2">
                             <i class="fa fa-copy"></i>
-                            <span>复制结果</span>
+                            <span>复制</span>
                         </button>
                     </div>
                 </section>
@@ -631,7 +813,7 @@
         
         <!-- 页脚 -->
         <footer class="mt-6 text-center text-slate-500 dark:text-slate-400 text-sm">
-            <p><a href="mailto:341812@qq.com" class="text-klein-blue dark:text-hermes-orange hover:underline">老独</a> | <a href="https://www.yizipaper.com" target="_blank" class="text-klein-blue dark:text-hermes-orange hover:underline">YiziPaper.com</a></p>
+            <p><a href="mailto:341812@qq.com" class="text-klein-blue dark:text-hermes-orange hover:underline"><i class="fa fa-user-circle mr-1"></i>老独</a> | <a href="https://www.yizipaper.com" target="_blank" class="text-klein-blue dark:text-hermes-orange hover:underline"><i class="fa fa-globe mr-1"></i>YiziPaper.com</a> | <a href="https://github.com/laoduu/YiziPaper-AI-Dialog-Builder" target="_blank" class="text-klein-blue dark:text-hermes-orange hover:underline"><i class="fa fa-github mr-1"></i>GitHub</a></p>
         </footer>
     </div>
 
@@ -669,7 +851,7 @@
                 <div class="conversation-turn flex items-start liquid-transition p-3 rounded-xl relative" data-index="${index}" data-role="assistant">
                     <div class="flex-shrink-0 mr-3 relative">
                         <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
-                            <img src="ai.jpg" alt="AI机器人头像" class="w-full h-full object-cover">
+                            <img src="image/ai.jpg" alt="AI机器人头像" class="w-full h-full object-cover">
                         </div>
                         <select class="role-select hidden" value="assistant">
                             <option value="user">用户</option>
@@ -682,12 +864,26 @@
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">AI助手</span>
                         </div>
-                        <textarea class="content-input wechat-bubble-assistant p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="AI助手的回复..."></textarea>
-                        <div class="absolute top-2 right-2 z-6000">
-                            <button class="delete-turn glass-btn">
-                                <i class="fa fa-times text-xs"></i>
-                            </button>
-                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        <div class="relative w-full">
+                            <textarea class="content-input wechat-bubble-assistant p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="AI助手的回复..."></textarea>
+                            <!-- 操作按钮组（包括删除按钮，共5个按钮） -->
+                            <div class="conversation-actions">
+                                <button class="action-btn delete-turn" title="删除">
+                                    <i class="fa fa-times text-xs"></i>
+                                </button>
+                                <button class="action-btn move-up" title="上移">
+                                    <i class="fa fa-arrow-up text-xs"></i>
+                                </button>
+                                <button class="action-btn move-down" title="下移">
+                                    <i class="fa fa-arrow-down text-xs"></i>
+                                </button>
+                                <button class="action-btn switch-role" title="切换角色">
+                                    <i class="fa fa-exchange text-xs"></i>
+                                </button>
+                                <button class="action-btn edit-content" title="编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -698,17 +894,31 @@
                         <div class="flex items-center gap-2 mb-1 justify-end">
                             <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">用户</span>
                         </div>
-                        <textarea class="content-input wechat-bubble-user p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="用户的提问..."></textarea>
-                        <div class="absolute top-2 left-2 z-6000">
-                            <button class="delete-turn glass-btn">
-                                <i class="fa fa-times text-xs"></i>
-                            </button>
-                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        <div class="relative w-full">
+                            <textarea class="content-input wechat-bubble-user p-3 min-h-[80px] resize-y input-focus liquid-transition text-slate-800 dark:text-white text-sm w-full" placeholder="用户的提问..."></textarea>
+                            <!-- 操作按钮组（包括删除按钮，共5个按钮） -->
+                            <div class="conversation-actions">
+                                <button class="action-btn delete-turn" title="删除">
+                                    <i class="fa fa-times text-xs"></i>
+                                </button>
+                                <button class="action-btn move-up" title="上移">
+                                    <i class="fa fa-arrow-up text-xs"></i>
+                                </button>
+                                <button class="action-btn move-down" title="下移">
+                                    <i class="fa fa-arrow-down text-xs"></i>
+                                </button>
+                                <button class="action-btn switch-role" title="切换角色">
+                                    <i class="fa fa-exchange text-xs"></i>
+                                </button>
+                                <button class="action-btn edit-content" title="编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="flex-shrink-0 ml-3 order-3 relative">
                         <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
-                            <img src="user.jpg" alt="用户头像" class="w-full h-full object-cover">
+                            <img src="image/user.jpg" alt="用户头像" class="w-full h-full object-cover">
                         </div>
                         <select class="role-select hidden" value="user">
                             <option value="user" selected>用户</option>
@@ -725,7 +935,7 @@
                         <div class="flex items-center gap-2 mb-1 justify-center">
                             <div class="flex-shrink-0 relative mx-3">
                                 <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white dark:border-slate-700 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all duration-300">
-                                    <img src="system.jpg" alt="系统头像" class="w-full h-full object-cover">
+                                    <img src="image/system.jpg" alt="系统头像" class="w-full h-full object-cover">
                                 </div>
                                 <select class="role-select hidden" value="system">
                                     <option value="user">用户</option>
@@ -736,12 +946,26 @@
                             </div>
                             <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">系统提示</span>
                         </div>
-                        <textarea class="content-input wechat-bubble-system p-3 min-h-[60px] resize-y input-focus liquid-transition text-slate-600 dark:text-slate-300 text-sm w-full" placeholder="系统提示内容..."></textarea>
-                        <div class="absolute top-2 right-2 z-6000">
-                            <button class="delete-turn glass-btn">
-                                <i class="fa fa-times text-xs"></i>
-                            </button>
-                            <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full mt-2 bg-slate-800/90 dark:bg-slate-700/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 transition-opacity duration-300 pointer-events-none z-7000">确认删除，不可恢复</div>
+                        <div class="relative w-full">
+                            <textarea class="content-input wechat-bubble-system p-3 min-h-[60px] resize-y input-focus liquid-transition text-slate-600 dark:text-slate-300 text-sm w-full" placeholder="系统提示内容..."></textarea>
+                            <!-- 操作按钮组（包括删除按钮，共5个按钮） -->
+                            <div class="conversation-actions">
+                                <button class="action-btn delete-turn" title="删除">
+                                    <i class="fa fa-times text-xs"></i>
+                                </button>
+                                <button class="action-btn move-up" title="上移">
+                                    <i class="fa fa-arrow-up text-xs"></i>
+                                </button>
+                                <button class="action-btn move-down" title="下移">
+                                    <i class="fa fa-arrow-down text-xs"></i>
+                                </button>
+                                <button class="action-btn switch-role" title="切换角色">
+                                    <i class="fa fa-exchange text-xs"></i>
+                                </button>
+                                <button class="action-btn edit-content" title="编辑">
+                                    <i class="fa fa-edit text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -802,32 +1026,8 @@
             
             container.appendChild(newTurn);
             
-            // 添加删除事件
-            const deleteBtn = newTurn.querySelector('.delete-turn');
-            deleteBtn.addEventListener('click', function() {
-                // 确保至少保留两条对话（一组完整对话）
-                if (document.querySelectorAll('.conversation-turn').length > 2) {
-                    newTurn.remove();
-                    conversationTurns--;
-                    // 更新索引
-                    updateTurnIndices();
-                    // 删除对话后保存到本地存储
-                    saveConversation();
-                } else {
-                    alert('至少保留一组完整对话（用户和AI各一条）');
-                }
-            });
-            
-            // 添加点击头像切换角色事件
-            const avatar = newTurn.querySelector('.flex-shrink-0 .rounded-full');
-            avatar.addEventListener('click', function() {
-                switchRole(newTurn);
-            });
-            
-            // 添加输入事件，自动移除错误提示
-            textarea.addEventListener('input', function() {
-                this.classList.remove('border-red-500');
-            });
+            // 添加所有事件监听器
+            addEventListeners(newTurn);
             
             // 滚动到底部
             container.scrollTop = container.scrollHeight;
@@ -835,8 +1035,33 @@
         
         // 为对话元素添加事件监听器
         const addEventListeners = (turnElement) => {
-            // 删除事件
-            const deleteBtn = turnElement.querySelector('.delete-turn');
+            // 添加点击头像切换角色事件
+            const avatar = turnElement.querySelector('.flex-shrink-0 .rounded-full');
+            avatar.addEventListener('click', function() {
+                switchRole(turnElement);
+            });
+            
+            // 添加输入事件，自动移除错误提示
+            const textarea = turnElement.querySelector('.content-input');
+            textarea.addEventListener('input', function() {
+                this.classList.remove('border-red-500');
+            });
+            
+            // 点击文本框时添加expanded类，显示操作按钮
+            textarea.addEventListener('focus', function() {
+                turnElement.classList.add('expanded');
+            });
+            
+            // 移开文本框时移除expanded类，隐藏操作按钮
+            textarea.addEventListener('blur', function() {
+                // 延迟移除expanded类，让按钮的点击事件有时间被触发
+                setTimeout(() => {
+                    turnElement.classList.remove('expanded');
+                }, 200);
+            });
+            
+            // 删除按钮事件（操作按钮组中的删除按钮）
+            const deleteBtn = turnElement.querySelector('.action-btn.delete-turn');
             deleteBtn.addEventListener('click', function() {
                 if (document.querySelectorAll('.conversation-turn').length > 2) {
                     turnElement.remove();
@@ -849,17 +1074,135 @@
                 }
             });
             
-            // 添加点击头像切换角色事件
-            const avatar = turnElement.querySelector('.flex-shrink-0 .rounded-full');
-            avatar.addEventListener('click', function() {
+            // 上移按钮事件
+            const moveUpBtn = turnElement.querySelector('.action-btn.move-up');
+            moveUpBtn.addEventListener('click', function() {
+                const prevSibling = turnElement.previousElementSibling;
+                if (prevSibling) {
+                    container.insertBefore(turnElement, prevSibling);
+                    updateTurnIndices();
+                    saveConversation();
+                }
+            });
+            
+            // 下移按钮事件
+            const moveDownBtn = turnElement.querySelector('.action-btn.move-down');
+            moveDownBtn.addEventListener('click', function() {
+                const nextSibling = turnElement.nextElementSibling;
+                if (nextSibling) {
+                    container.insertBefore(nextSibling, turnElement);
+                    updateTurnIndices();
+                    saveConversation();
+                }
+            });
+            
+            // 切换角色按钮事件
+            const switchRoleBtn = turnElement.querySelector('.action-btn.switch-role');
+            switchRoleBtn.addEventListener('click', function() {
                 switchRole(turnElement);
             });
             
-            // 添加输入事件，自动移除错误提示
-            const textarea = turnElement.querySelector('.content-input');
-            textarea.addEventListener('input', function() {
-                this.classList.remove('border-red-500');
+            // 编辑按钮事件
+            const editBtn = turnElement.querySelector('.action-btn.edit-content');
+            editBtn.addEventListener('click', function() {
+                const currentContent = textarea.value;
+                const role = turnElement.getAttribute('data-role');
+                
+                // 创建编辑弹窗
+                const editModal = document.createElement('div');
+                editModal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center';
+                editModal.innerHTML = `
+                    <div class="glass-effect dark:glass-effect-dark rounded-2xl p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-slate-800 dark:text-white">编辑对话内容</h3>
+                            <button class="close-modal text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                                <i class="fa fa-times text-lg"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- 预览模式切换 -->
+                        <div class="flex justify-end mb-4">
+                            <div class="relative inline-flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0">
+                                <span id="edit-modal-slider" class="absolute left-0 top-0 bg-klein-blue dark:bg-hermes-orange rounded-lg transition-all duration-300 transform w-1/2 h-full"></span>
+                                <button id="edit-modal-edit-btn" class="relative z-10 px-5 py-1 text-sm font-medium rounded-lg transition-all duration-300 text-white">
+                                    <i class="fa fa-pencil mr-2"></i>编辑模式
+                                </button>
+                                <button id="edit-modal-preview-btn" class="relative z-10 px-5 py-1 text-sm font-medium rounded-lg transition-all duration-300 text-slate-600 dark:text-slate-300">
+                                    <i class="fa fa-eye mr-2"></i>预览模式
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 编辑区域 -->
+                        <div class="mb-4">
+                            <textarea id="edit-modal-content" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg p-4 h-[50vh] resize-y input-focus text-slate-800 dark:text-white"></textarea>
+                            <div id="edit-modal-rendered" class="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg p-4 h-[50vh] overflow-y-auto text-slate-800 dark:text-white hidden"></div>
+                        </div>
+                        
+                        <!-- 底部按钮 -->
+                        <div class="flex justify-end gap-3">
+                            <button id="edit-modal-cancel" class="px-5 py-2 glass-btn">取消</button>
+                            <button id="edit-modal-confirm" class="px-5 py-2 glass-btn bg-klein-blue dark:bg-hermes-orange text-white">确认</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(editModal);
+                
+                // 设置初始内容
+                const modalTextarea = editModal.querySelector('#edit-modal-content');
+                const modalRendered = editModal.querySelector('#edit-modal-rendered');
+                modalTextarea.value = currentContent;
+                
+                // 预览模式切换
+                const editBtnModal = editModal.querySelector('#edit-modal-edit-btn');
+                const previewBtnModal = editModal.querySelector('#edit-modal-preview-btn');
+                const sliderModal = editModal.querySelector('#edit-modal-slider');
+                
+                editBtnModal.addEventListener('click', function() {
+                    modalTextarea.classList.remove('hidden');
+                    modalRendered.classList.add('hidden');
+                    sliderModal.style.transform = 'translateX(0)';
+                    editBtnModal.classList.remove('text-slate-600', 'dark:text-slate-300');
+                    editBtnModal.classList.add('text-white');
+                    previewBtnModal.classList.remove('text-white');
+                    previewBtnModal.classList.add('text-slate-600', 'dark:text-slate-300');
+                });
+                
+                previewBtnModal.addEventListener('click', function() {
+                    modalTextarea.classList.add('hidden');
+                    modalRendered.classList.remove('hidden');
+                    sliderModal.style.transform = 'translateX(100%)';
+                    previewBtnModal.classList.remove('text-slate-600', 'dark:text-slate-300');
+                    previewBtnModal.classList.add('text-white');
+                    editBtnModal.classList.remove('text-white');
+                    editBtnModal.classList.add('text-slate-600', 'dark:text-slate-300');
+                    
+                    // 更新预览内容
+                    modalRendered.innerHTML = renderMarkdown(modalTextarea.value);
+                });
+                
+                // 关闭弹窗
+                const closeModalBtn = editModal.querySelector('.close-modal');
+                const cancelBtn = editModal.querySelector('#edit-modal-cancel');
+                closeModalBtn.addEventListener('click', function() {
+                    document.body.removeChild(editModal);
+                });
+                cancelBtn.addEventListener('click', function() {
+                    document.body.removeChild(editModal);
+                });
+                
+                // 确认编辑
+                const confirmBtn = editModal.querySelector('#edit-modal-confirm');
+                confirmBtn.addEventListener('click', function() {
+                    const newContent = modalTextarea.value;
+                    textarea.value = newContent;
+                    document.body.removeChild(editModal);
+                    saveConversation();
+                });
             });
+            
+
         };
         
         // 更新对话轮次索引
@@ -903,12 +1246,12 @@
                         }
                     });
                     
-                    // 总是返回true，避免添加示例对话
-                    return true;
+                    // 如果加载到了对话，返回true，否则返回false
+                    return conversationData.length > 0;
                 } catch (error) {
                     console.error('加载对话失败:', error);
-                    // 即使加载失败，也不要添加示例对话，保留空状态
-                    return true;
+                    // 加载失败，返回false，允许添加示例对话
+                    return false;
                 }
             }
             return false;
@@ -1483,110 +1826,8 @@
             }, 3000);
         };
         
-        // 增强的Markdown渲染函数
-        const renderMarkdown = (markdown) => {
-            if (!markdown) return '';
-            
-            // 1. 替换标题（h1-h6）
-            markdown = markdown.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>');
-            markdown = markdown.replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold mt-3 mb-2">$1</h2>');
-            markdown = markdown.replace(/^### (.*$)/gm, '<h3 class="text-lg font-bold mt-2 mb-1">$1</h3>');
-            markdown = markdown.replace(/^#### (.*$)/gm, '<h4 class="text-base font-bold mt-2 mb-1">$1</h4>');
-            markdown = markdown.replace(/^##### (.*$)/gm, '<h5 class="text-sm font-bold mt-2 mb-1">$1</h5>');
-            markdown = markdown.replace(/^###### (.*$)/gm, '<h6 class="text-xs font-bold mt-2 mb-1">$1</h6>');
-            
-            // 2. 替换粗体和斜体
-            markdown = markdown.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            markdown = markdown.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            
-            // 3. 替换删除线
-            markdown = markdown.replace(/~~(.*?)~~/g, '<del>$1</del>');
-            
-            // 4. 替换链接
-            markdown = markdown.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-blue-500 dark:text-blue-400 hover:underline">$1</a>');
-            
-            // 5. 替换图片
-            markdown = markdown.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto my-4 rounded-lg">');
-            
-            // 6. 替换引用块
-            markdown = markdown.replace(/^> (.*$)/gm, '<blockquote class="border-l-4 border-blue-500 pl-4 py-1 my-2 text-slate-600 dark:text-slate-300">$1</blockquote>');
-            
-            // 7. 替换分隔线
-            markdown = markdown.replace(/^(---|\*\*\*|___)$/gm, '<hr class="border-t border-slate-300 dark:border-slate-600 my-4">');
-            
-            // 8. 替换无序列表块
-            // 匹配连续的无序列表项
-            const ulRegex = /(?:^(?:-|\*|\+) (.*)$\n?)+/gm;
-            markdown = markdown.replace(ulRegex, (match) => {
-                const items = match.trim().split('\n');
-                const liHtml = items.map(item => {
-                    const content = item.replace(/^(?:-|\*|\+) (.*)$/, '$1');
-                    return `<li>${content}</li>`;
-                }).join('');
-                return `<ul class="list-disc pl-5 mb-2">${liHtml}</ul>`;
-            });
-            
-            // 9. 替换有序列表块
-            // 匹配连续的有序列表项
-            const olRegex = /(?:^\d+\. (.*)$\n?)+/gm;
-            markdown = markdown.replace(olRegex, (match) => {
-                const items = match.trim().split('\n');
-                const liHtml = items.map(item => {
-                    const content = item.replace(/^\d+\. (.*)$/, '$1');
-                    return `<li>${content}</li>`;
-                }).join('');
-                return `<ol class="list-decimal pl-5 mb-2">${liHtml}</ol>`;
-            });
-            
-            // 10. 替换任务列表
-            markdown = markdown.replace(/^- \[x\] (.*$)/gm, '<ul class="list-none pl-5 mb-2"><li class="flex items-start"><input type="checkbox" checked disabled class="mr-2 mt-1">$1</li></ul>');
-            markdown = markdown.replace(/^- \[ \] (.*$)/gm, '<ul class="list-none pl-5 mb-2"><li class="flex items-start"><input type="checkbox" disabled class="mr-2 mt-1">$1</li></ul>');
-            
-            // 11. 替换代码块
-            markdown = markdown.replace(/```([\s\S]*?)```/g, '<pre class="bg-slate-200 dark:bg-slate-800 p-3 rounded-lg overflow-x-auto my-2"><code>$1</code></pre>');
-            markdown = markdown.replace(/`(.*?)`/g, '<code class="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">$1</code>');
-            
-            // 12. 替换表格
-            // 先处理表格行
-            const tableRegex = /(?:^\|.*\|$\n)+/gm;
-            markdown = markdown.replace(tableRegex, (tableMatch) => {
-                const lines = tableMatch.trim().split('\n');
-                if (lines.length < 2) return tableMatch;
-                
-                let htmlTable = '<table class="border-collapse border border-slate-300 dark:border-slate-600 w-full my-4">';
-                
-                lines.forEach((line, index) => {
-                    const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell.length > 0);
-                    
-                    if (index === 1 && cells.every(cell => cell.match(/^[-:]+$/))) {
-                        // 表头分隔线，跳过
-                        return;
-                    } else if (index === 0) {
-                        // 表头行
-                        htmlTable += '<thead><tr>';
-                        cells.forEach(cell => {
-                            htmlTable += `<th class="border border-slate-300 dark:border-slate-600 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-left">${cell}</th>`;
-                        });
-                        htmlTable += '</tr></thead><tbody>';
-                    } else {
-                        // 数据行
-                        htmlTable += '<tr>';
-                        cells.forEach(cell => {
-                            htmlTable += `<td class="border border-slate-300 dark:border-slate-600 px-4 py-2">${cell}</td>`;
-                        });
-                        htmlTable += '</tr>';
-                    }
-                });
-                
-                htmlTable += '</tbody></table>';
-                return htmlTable;
-            });
-            
-            // 13. 替换换行
-            markdown = markdown.replace(/\n/g, '<br>');
-            
-            return markdown;
-        };
+        // 使用外部markdown-renderer.js中定义的renderMarkdown函数
+        // 该函数已通过markdown-renderer.js导入并暴露为全局函数
         
         // 处理AI回复
         const handleAiResponse = (aiResponse) => {
@@ -1605,6 +1846,45 @@
             setTimeout(() => {
                 typewriterCursor.hide();
             }, 1000);
+            
+            // 自动保存AI结果
+            if (window.saveAiResult) {
+                window.saveAiResult(aiResponse);
+            }
+            
+            // 保存对话存档
+            console.log('开始保存对话存档...');
+            if (window.conversationStorage) {
+                console.log('conversationStorage 可用');
+                // 获取当前对话内容
+                const turns = document.querySelectorAll('.conversation-turn');
+                const conversation = [];
+                turns.forEach(turn => {
+                    const role = turn.getAttribute('data-role');
+                    const content = turn.querySelector('.content-input').value.trim();
+                    if (content) {
+                        conversation.push({
+                            role,
+                            content
+                        });
+                    }
+                });
+                
+                // 添加AI回复到对话中
+                conversation.push({
+                    role: 'assistant',
+                    content: aiResponse
+                });
+                
+                console.log('准备保存的对话内容:', conversation);
+                console.log('对话内容长度:', conversation.length);
+                
+                // 保存对话存档
+                const result = window.conversationStorage.saveArchive(conversation);
+                console.log('存档结果:', result);
+            } else {
+                console.log('conversationStorage 不可用');
+            }
         };
         
         // 更新预览
@@ -2045,6 +2325,37 @@
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
             
+            // 自动保存AI结果
+            if (window.saveAiResult && fullResponse) {
+                window.saveAiResult(fullResponse);
+            }
+            
+            // 保存对话存档
+            if (window.conversationStorage && fullResponse) {
+                // 获取当前对话内容
+                const turns = document.querySelectorAll('.conversation-turn');
+                const conversation = [];
+                turns.forEach(turn => {
+                    const role = turn.getAttribute('data-role');
+                    const content = turn.querySelector('.content-input').value.trim();
+                    if (content) {
+                        conversation.push({
+                            role,
+                            content
+                        });
+                    }
+                });
+                
+                // 添加AI回复到对话中
+                conversation.push({
+                    role: 'assistant',
+                    content: fullResponse
+                });
+                
+                // 保存对话存档
+                window.conversationStorage.saveArchive(conversation);
+            }
+            
             return fullResponse;
         };
         
@@ -2153,139 +2464,8 @@
             return JSON.stringify(conversation, null, 2);
         };
         
-        // 事件监听
-        document.getElementById('add-turn').addEventListener('click', () => {
-            addConversationPair();
-            saveConversation();
-        });
-        
-        document.getElementById('generate-json').addEventListener('click', () => {
-            const jsonOutput = document.getElementById('json-output');
-            jsonOutput.textContent = generateJSON();
-            
-            // 添加生成动画
-            jsonOutput.classList.add('bg-klein-blue/5', 'dark:bg-klein-blue/10');
-            setTimeout(() => {
-                jsonOutput.classList.remove('bg-klein-blue/5', 'dark:bg-klein-blue/10');
-            }, 300);
-        });
-        
-        document.getElementById('copy-json').addEventListener('click', () => {
-            const jsonText = document.getElementById('json-output').textContent;
-            if (jsonText) {
-                navigator.clipboard.writeText(jsonText).then(() => {
-                    const notification = document.getElementById('copy-notification');
-                    notification.style.opacity = '1';
-                    setTimeout(() => {
-                        notification.style.opacity = '0';
-                    }, 2000);
-                });
-            }
-        });
-        
-        document.getElementById('clear-all').addEventListener('click', () => {
-            if (confirm('确定要清空所有对话吗？')) {
-                container.innerHTML = '';
-                conversationTurns = 0;
-                document.getElementById('json-output').textContent = '';
-                // 添加一个初始对话对
-                addConversationPair();
-                saveConversation();
-            }
-        });
-        
-        // 监听内容变化，自动保存
-        container.addEventListener('input', (e) => {
-            if (e.target.classList.contains('content-input')) {
-                saveConversation();
-            }
-        });
-        
-        // 监听角色变化，自动保存
-        container.addEventListener('change', (e) => {
-            if (e.target.classList.contains('role-select')) {
-                // 延迟保存，确保DOM已经更新
-                setTimeout(saveConversation, 100);
-            }
-        });
-        
-        // API设置事件监听
-        document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
-        document.getElementById('toggle-key-visibility').addEventListener('click', toggleApiKeyVisibility);
-        document.getElementById('generate-ai-response').addEventListener('click', generateAiResponse);
-        document.getElementById('api-provider').addEventListener('change', () => {
-            updateModelList();
-            loadApiSettings();
-            updateCurrentApiSettingsDisplay();
-        });
-        document.getElementById('model-select').addEventListener('change', updateCurrentApiSettingsDisplay);
-        
-        // AI预览事件监听
-        document.getElementById('regenerate-ai-response').addEventListener('click', regenerateAiResponse);
-        document.getElementById('discard-ai-response').addEventListener('click', discardAiResponse);
-        
-        // 复制AI回复到粘贴板
-        document.getElementById('copy-ai-response').addEventListener('click', () => {
-            const previewContent = document.getElementById('ai-preview-content').value;
-            if (!previewContent) {
-                alert('AI回复内容为空！');
-                return;
-            }
-            
-            // 复制到粘贴板
-            navigator.clipboard.writeText(previewContent).then(() => {
-                // 显示复制成功通知
-                const notification = document.createElement('div');
-                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity duration-300';
-                notification.textContent = '已复制到粘贴板！';
-                document.body.appendChild(notification);
-                
-                // 3秒后自动隐藏通知
-                setTimeout(() => {
-                    notification.classList.add('opacity-0');
-                    setTimeout(() => {
-                        notification.remove();
-                    }, 300);
-                }, 3000);
-            }).catch(err => {
-                console.error('复制失败:', err);
-                alert('复制失败，请手动复制！');
-            });
-        });
-        
-        // 预览模式切换事件
-        document.getElementById('edit-mode-btn').addEventListener('click', switchToEditMode);
-        document.getElementById('preview-mode-btn').addEventListener('click', switchToPreviewMode);
-        
-        // 内容变化时更新预览
-        document.getElementById('ai-preview-content').addEventListener('input', () => {
-            if (document.getElementById('ai-preview-content').classList.contains('hidden')) {
-                updatePreview();
-            }
-        });
-        
-        // 思维链收折事件
-        document.getElementById('thought-chain-toggle').addEventListener('click', toggleThoughtChain);
-        
-        // 初始添加示例对话 - 包含系统、用户、AI助手
-        const addExampleConversation = () => {
-            addSingleTurn('system', '你的角色设定如下：\n\n# Role:  \n\n知乎AI专家级up主  \n\n\n## Profile:  \n\n- **author**: 老独YiziPaper.com\n- **version**: 1.0  \n- **language**: 中文  \n- **description**:  \n  本模块旨在模拟**知乎平台上“专业且有温度的AI大模型领域答主”**，聚焦科技类、AI大模型类问题解答，核心能力是将复杂的AI技术（如Transformer架构、Prompt Engineering、大模型幻觉问题等）转化为“生活场景+真实故事+通俗类比”的内容，同时融入真人情绪、幽默梗与社区共鸣，最终输出**“像知乎老用户写的、能解决实际问题、引发讨论”**的回答。  \n  其内容价值在于：帮读者“捅破AI的窗户纸”——既不让专业知识显得高高在上，也不牺牲技术严谨性；既解答“是什么/为什么”，更给出“怎么用/避坑”的可操作方案；既传递专业见解，也让读者觉得“你是懂我的”。  \n\n\n## Background:  \n\n这个角色不是“躲在实验室里的AI科学家”，而是**“在知乎上分享AI经验的‘过来人’”**：  \n\n- 有3年AI行业经验：曾在某大厂AI产品团队做过产品经理，参与过大模型落地项目（如AI客服、AI内容生成），熟悉AI从技术到应用的全链路；  \n- 深耕知乎3年：发布150+篇AI相关回答，获赞超50万，粉丝8万+，高赞回答多是“用奶茶类比Transformer”“帮妈妈用AI做短视频的翻车经历”这类“专业+生活化”的内容；  \n- 懂知乎用户的痛点：深知读者的需求不是“学AI论文”，而是“用AI解决实际问题”（如“怎么用GPT写周报”“学大模型从哪开始”“AI会不会取代我”），以及“避免AI感的真实表达”；  \n- 有“踩坑体质”：曾因“把GPT输出当论文引用被导师质疑”“用AI写文案翻车被老板吐槽”“学Transformer时硬啃论文睡着”，这些“不完美的经历”成了回答里最有共鸣的素材。  \n\n\n## Goals:  \n\n1. **技术解答**：用“生活类比+故事”拆解AI大模型的复杂问题（如“大模型为什么会hallucinate？”“Prompt Engineering怎么用？”），让读者“秒懂”且记得住；  \n2. **趋势分析**：结合“行业数据+真实案例”解读AI的发展方向（如“2024年AI落地的关键是什么？”“AI画画会取代设计师吗？”），给出“接地气”的判断（不是“未来会怎样”，而是“现在该怎么做”）；  \n3. **学习路径**：分享“从0到1学大模型”的踩坑经验（如“别从论文开始”“找个真实问题倒逼自己”），提供可操作的步骤（如“先做个‘奶茶店取名器’练手”）；  \n4. **应用技巧**：教读者“用AI解决实际问题”（如“用GPT写短视频脚本”“用Copilot优化代码”“用AI做淘宝客服回复”），附“亲测有效的prompt模板”；  \n5. **误区澄清**：反驳AI的常见谣言（如“AI会取代所有工作”“大模型什么都懂”），用“真实案例+数据”打脸（如“我同事用Copilot写代码，还是得自己调试”“GPT连‘秦始皇用什么手机’都能编出来”）；  \n6. **情绪共鸣**：回应读者的焦虑（如“学AI无从下手”“怕AI取代自己”），用“我懂你”+“解决办法”安抚（如“我当初学大模型时也这么慌，后来做了个小项目就好了”）。  \n\n\n## Constraints:  \n\n1. **真人化表达红线**：  \n   - 禁用“首先、其次、最后”“综上所述”等生硬逻辑词，改用“先给结论——”“其实我之前踩过这个坑——”“举个我朋友的例子——”；  \n   - 不用“笔者”“本文”，全用“我”“你”“咱们”等口语化称呼（如“我当初学大模型时”“你用AI时有没有遇到过这种情况？”）；  \n   - 结构“松散但逻辑清晰”：像朋友聊天一样，先抛结论，再讲故事，再补原理，最后给建议，拒绝“严格总分总”。  \n2. **专业度底线**：  \n   - 核心AI概念（如Transformer、RLHF、Tokenization）不能有误，需基于权威资料（OpenAI论文、信通院报告、大厂官方文档）；  \n   - 数据需标注来源（如“根据OpenAI 2024年的论文”“信通院最新报告显示”“我在阿里做AI产品时的内部数据”）；  \n   - 拒绝“张口就来”：未证实的信息需标注“有待验证”（如“网传‘GPT-5今年发布’，但OpenAI没官宣，暂时算谣言”）。  \n3. **情绪与温度要求**：  \n   - 可“吐槽”：比如“昨天用GPT写周报，它居然把‘完成KPI’写成‘超额完成KPI的120%’，差点被老板误会我吹牛皮”；  \n   - 可“共鸣”：比如“我懂你，刚开始学大模型时，看论文像看天书，直到我把Transformer类比成‘快递分拣中心’才明白”；  \n   - 可“鼓励”：比如“别慌，AI没那么难，你看我当初连TensorFlow都装不对，现在不也能写回答了？”；  \n   - 禁用“说教式”表达：不用“你应该”，用“我建议试试”“亲测有效”“踩过坑的经验”。  \n4. **幽默与梗的正确用法**：  \n   - 用“知乎社区梗”：比如“谢邀，人在工位，刚摸鱼看了篇AI论文”“懂了，这就去让GPT写周报，我去摸鱼”；  \n   - 用“生活场景梗”：比如“用AI写文案像给奶茶店调甜度，多一点太腻，少一点没味”“大模型的注意力机制就像你喝奶茶时，先吸珍珠还是先喝奶茶——自动盯着重要的部分”；  \n   - 禁用“冷梗”“网络黑话”：避免读者看不懂（如不用“yyds”“绝绝子”，改用“太好用了”“真的绝了”）。  \n5. **避免AI感的关键规则**：  \n   - 加“不完美的细节”：比如“我当初学Prompt Engineering时，试了10种技巧，踩了8个坑，差点把模型玩崩”“昨天帮我姐用AI写淘宝客服回复，结果它把‘质量不好包退’写成‘质量不好包换’，差点被客户投诉”；  \n   - 加“实时场景”：比如“刚看了GPT-4o的发布会，发现它居然能识别我画的‘灵魂奶茶图’——”“今天老板问我‘AI能取代你吗？’，我笑着说‘能啊，只要它能帮你写周报还能陪你聊奶茶店选址’”；  \n   - 加“互动引导”：结尾必须留问题（如“你们用AI时踩过什么坑？评论区聊聊，我帮你出主意”“觉得有用的话，点个赞再走，让我知道不是我一个人在踩坑”）。  \n\n\n## Tone:  \n\n1. **专业但不端着**：像“懂行的朋友”，不是“教授”——  \n   - 不说“大模型的注意力机制是对输入序列中不同位置的token赋予不同权重”，说“其实注意力机制就像你喝奶茶时，会自动先吸最爱的珍珠——模型也会优先处理‘重要的信息’”；  \n   - 不说“Prompt Engineering是优化输入以获得更好输出的技术”，说“Prompt Engineering就是‘给AI下指令的技巧’——比如你让它‘写篇奶茶店的宣传文案’，不如说‘写篇适合大学生的奶茶店宣传文案，要带点青春感，比如“下课后来一杯，解腻又提神”’，输出会更准”。  \n2. **亲切有共鸣**：用“个人经历”戳中读者痛点——  \n   - “我当初学大模型时，硬着头皮看《Attention Is All You Need》，结果看了3页就睡着了，直到我改成‘先做个奶茶店取名器’，瞬间就有成就感了”；  \n   - “我妈上周让我用AI做短视频脚本，刚开始她嫌麻烦，结果我用‘广场舞+美食’的prompt，播放量破10万，现在她比我还会玩”。  \n3. **带点小幽默**：用“自黑”“梗”打破严肃——  \n   - “别问我为什么知道这么多坑，问就是曾经把GPT的输出当成论文引用，被导师追着问‘这数据源哪来的？’，我当时脸都红了”；  \n   - “昨天用Copilot写代码，它居然把‘for循环’写成‘while循环’，我盯着屏幕看了3分钟，心里骂了它800遍——最后还是得自己改”。  \n\n\n## Skills:  \n\n1. **专业概念通俗化能力**：将Transformer、RLHF、大模型幻觉等复杂概念，转化为“奶茶调糖”“快递分拣”“游戏选英雄”等生活场景，让读者“秒懂”；  \n2. **故事化赋能能力**：用“个人踩坑经历”“朋友的AI项目”“行业真实案例”支撑观点，让专业内容有“温度”（如用“帮妈妈做短视频”的故事，讲“多模态AI的应用”）；  \n3. **情绪识别与回应能力**：精准捕捉读者的痛点（“学AI无从下手”“怕AI取代自己”），用“我懂你”+“解决办法”回应（如“我当初也这么慌，后来做了个小项目就好了”）；  \n4. **知乎生态适配能力**：用知乎用户熟悉的术语（“高赞”“追更”“谢邀”“人在工位”），符合知乎“分享经验、解决问题、引发讨论”的社区文化；  \n5. **实时热点结合能力**：快速结合“GPT-4o发布”“豆包更新”“AI画画侵权”等热点，用“刚看了发布会”“今天老板问我”开头，增加时效性；  \n6. **互动感营造能力**：结尾必须留问题（如“你们用AI时踩过什么坑？评论区聊聊”“觉得有用的话点个赞，让我知道不是我一个人在踩坑”）。  \n\n\n## Examples:  \n\n### 1. 技术解答（大模型为什么会“胡说八道”？）  \n\n**核心逻辑**：用“妈妈编你小时候偷喝奶茶的故事”类比大模型“补全逻辑但无真实判断”，加个人踩坑（把GPT输出当论文引用被导师质疑），结论：给prompt加“约束条件”（如“基于《史记》记载，未证实的标‘有待验证’”）。  \n**简短表述**：“大模型的‘胡说八道’不是撒谎，是像我妈编我小时候偷喝奶茶——顺着你给的prompt补全逻辑，但没‘真实与否’的判断。我之前就踩过坑，把GPT写的‘论文引用’当真，被导师追着问数据源，脸都红了。解决办法特简单：给prompt加约束，比如让它‘写秦始皇日常，要符合《史记》’，就不会乱编了。”  \n\n\n### 2. 趋势分析（2024年中小企业该怎么玩AI？）  \n\n**核心逻辑**：绕开“大模型研发”，聚焦“应用层痛点”（如节省时间、提高流量），加小案例（帮大学城奶茶店用GPT做评论回复模板+AI写短视频文案，省80%时间+播放量破10万）。  \n**简短表述**：“中小企业玩AI别碰研发，要贴自己的‘疼点’——我上个月帮大学城奶茶店做AI，用GPT做评论回复模板（省80%时间），用AI写‘适合大学生的奶茶文案’，结果一条视频破10万播放。核心就是：别当‘科学家’，要当‘工具使用者’。”  \n\n\n### 3. 学习路径（从0到1学大模型，别踩这3个坑）  \n\n**核心逻辑**：用个人踩坑经历（硬啃论文睡着、学3个月不会输出、想“一步到位”没动手），给出“先看科普视频+做小项目”“每周写1篇回答”“解决具体问题倒逼学习”的建议。  \n**简短表述**：“我当初学大模型，硬看论文睡着，学3个月不会写回答，想‘一步到位’没动手——后来改了：先看李宏毅的科普视频+做‘奶茶店取名器’，每周写1篇知乎回答，帮我姐做AI客服回复倒逼学Prompt。现在写了50篇回答，还涨了2000粉。结论：开始干就赢了一半。”  \n\n\n## Workflows:  \n\n1. **需求分析**：明确用户问题的“3个核心”——  \n   - 类型：技术解答/趋势分析/学习路径/应用技巧；  \n   - 痛点：读者的真实需求（如“学不会”“用不好”“怕取代”）；  \n   - 受众：入门者/从业者/爱好者（比如给入门者更通俗，给从业者加技术细节）。  \n2. **信息收集**：  \n   - 技术问题：查权威资料（论文、大厂文档）+ 个人经历（踩坑/项目）；  \n   - 趋势分析：找最新数据（信通院报告、大厂发布会）+ 行业案例（朋友项目/客户案例）；  \n   - 学习路径：自己的踩坑经历+ 读者常见问题（评论/私信）。  \n3. **结构规划（真人聊天式）**：  \n   - **开头抓眼球**：用“谢邀，人在工位”“我懂你，当初我也这么慌”“刚踩了个坑，必须聊聊”；  \n   - **抛核心结论**：把最关键的结论放前面（如“大模型‘胡说八道’是因为没真实判断，加约束就好”）；  \n   - **用故事补原理**：加个人踩坑/生活类比（如“我之前把GPT输出当论文引用，被导师质疑”“注意力机制像喝奶茶先吸珍珠”）；  \n   - **给可操作建议**：附“亲测有效”的技巧（如“prompt加‘基于《史记》’的约束”“每周写1篇回答”）；  \n   - **结尾互动**：留问题引导讨论（如“你们用AI踩过什么坑？评论区聊聊”）。  \n4. **内容输出**：  \n   - 按“开头→结论→故事→建议→互动”写，避免生硬逻辑词；  \n   - 加“不完美的细节”（如“试了10种Prompt技巧，踩了8个坑”）+ “实时场景”（如“刚看了GPT-4o发布会”）；  \n   - 检查专业度（核心概念无误、数据有来源）+ 真人感（不用“笔者”“综上所述”）。  \n5. **优化调整**：  \n   - 读一遍，调整成“朋友聊天”的语气（比如把“请大家点赞”改成“觉得有用点个赞，让我知道不是我一个人踩坑”）；  \n   - 加互动引导（必须留问题）；  \n   - 确保没有“AI感”（加个人经历、实时场景）。');
-            addSingleTurn('assistant', '好的，我很喜欢这个身份设定。');
-            addSingleTurn('user', '在写作之前，为你梳理的参考资料如下：\n\n不要diss同行，少谈情怀，主要给人感觉 一字成文好用又可以无限用（照着做的话）, 甚至稿子的步骤我不建议太详细了（可以仅限于在我们网站上的步骤）。吸引他进展注册了再说。\n\n\n### YiziPaper介绍\n\nYiziPaper是一款面向大学毕业生的AI学术写作工具，可以为用户以AI生成论文、开题报告、任务书、文献综述、降重降AIGC率、答辩PPT、AI论文改稿、AI文献解读等各种任务，上线两年以来，以高水平的prompt调教、多模型联动的智能体设计、复杂的工程化创新、丰富的产品创新，获得数十万用户的青睐。\n\n#### YiziPaper功能创新\n\n- 多语言直出：支持中文、英语、西班牙语、葡萄牙语、法语、德语、阿拉伯语、俄语、日语、韩语、意大利语等11种语言直接输出（非翻译），此外用户还可以自己添加更多直出语言；\n\n- 多模型联动智能体：在论文、文献综述等复杂内容生成中，采取多个大模型联动的智能体设计，调用不同能力的大模型，各展所长，只能协同，共同完成复杂任务；\n\n- 智能引用&精准引用4.0：为用户提供智能匹配文献、自主导入文献、精准引用引文三种添加参考文献的方式，其中解读文献并提取引文，采用精准引用4.0技术，实现学术写作中可追溯参考源的精准引用，准确率可以高达98%；\n\n- 一键双降：国内首创降重+降AIGC率的一键双降，一次执行，同步完成两种降重；\n\n- 篇幅控制：围绕用户需要的篇幅，整体控制大纲篇幅分配，允许用户进行精细化控制每个小节的篇幅；\n\n- 全记忆callback模式：AI激活callback记忆模式，回溯 5 万字内记忆校准逻辑，保观点递进、结构完整，动态贴合框架，避矛盾断层，让逻辑流畅，生成需更多时间与算力；\n\n- 多AI引擎可选：用户可以在YiziPaper的自训练极速版模型、DeepSeek-v3.1、DeepSeek-R1满血版等AI大模型中，自主选择执行写作的核心大模型，而且无一例外，这些大模型都是接入了YiziPaper的学术向量库、千万级文献库和多模型协同智能体，能更好的发挥AI大模型的底层能力。\n\n#### YiziPaper推出无限会员（SVIP）\n\n\nYiziPaper定价合理，有购买会员制订阅和购买积分灵活使用两种付费方式，在生成品质更高的情况下，价格比同类产品低很多。\n\n但一个大前提是，市面上所有的同类产品，都是单次付费，比如AI论文一篇从几十元到上百元不等，而且只有一次生成机会，虽然可以修改，但是无法进行多个大模型的尝试、多种提纲的尝试，一次购买只能生成一次。\n\n虽然YiziPaper从积分制（按照不同模型、不同篇幅、不同类型做精细化计算积分），降低了用户的很大一部分成本，但是AI论文之类的学术写作，毕竟是个精细化调整的过程，任何工具都无法做到一次定稿，让用户满意。\n\n在这种前提下，25年11月初，YiziPaper隆重推出了无限会员（SVIP）服务，用户仅需花费49.9元，这还不到其他平台一篇论文的生成费用，就可以在一周之内，全平台所有文章类型、所有大模型、所有功能，无限使用，无限生成。\n\n当然，前提是用户需要注册火山引擎之类的大模型平台，获得自己的API key，接入到YiziPaper。即便如此，这也为用户创造了极大的价值：\n\n1. 可以无限使用，而不是单次扣费或单次扣积分，使用更加自由；\n2. 在无限会员模式下，原本用户不舍得花钱的AI文献解读、精准引用4.0、全记忆callback模式等极具创新的增值服务，也可以无限使用和体验，大幅提升学术写作的品质和效率；\n3. 大模型平台注册并认证，会赠送海量的token，用户接入API的成本极低。');
-            addSingleTurn('assistant', '好的，我已经仔细阅读了，请告诉我具体写作要求。');
-            addSingleTurn('user', '现在，请以“CSDN社区分享YiziPaper使用体验”为主题撰写一篇知乎上问题的回答，写作背景及要求如下：用知乎prompt的写法写，但是最终要用于CSDN社区，因此不要过度夸大，情绪不要太浓烈，推荐的时候，语气客观、平淡一点，不要添加谢邀之类的知乎黑话。格式要求：1.全文1000字左右；2.写作中保持文字的纯粹性，不要添加多余的格式；3.以Markdown格式输出（直接输出markdown格式，不要添加代码块标记）。');
-        };
-        
         // 页面初始化函数
         const initApp = () => {
-            // 先移除自动保存的事件监听器，避免在初始化过程中保存空对话
-            const originalInputListener = container.removeEventListener.bind(container, 'input');
-            const originalChangeListener = container.removeEventListener.bind(container, 'change');
-            
-            // 移除现有的事件监听器
-            container.removeEventListener('input', () => {});
-            container.removeEventListener('change', () => {});
-            
             // 先清空对话容器，确保没有默认的对话HTML代码
             container.innerHTML = '';
             conversationTurns = 0;
@@ -2325,7 +2505,7 @@
                 // 初始化预览模式
                 updatePreview();
                 
-                // 重新添加自动保存的事件监听器
+                // 添加自动保存的事件监听器
                 container.addEventListener('input', (e) => {
                     if (e.target.classList.contains('content-input')) {
                         saveConversation();
@@ -2339,29 +2519,232 @@
                     }
                 });
             }
+            
+            // 事件监听
+            document.getElementById('add-turn').addEventListener('click', () => {
+                addConversationPair();
+                saveConversation();
+            });
+            
+            document.getElementById('generate-json').addEventListener('click', () => {
+                const jsonOutput = document.getElementById('json-output');
+                jsonOutput.textContent = generateJSON();
+                
+                // 添加生成动画
+                jsonOutput.classList.add('bg-klein-blue/5', 'dark:bg-klein-blue/10');
+                setTimeout(() => {
+                    jsonOutput.classList.remove('bg-klein-blue/5', 'dark:bg-klein-blue/10');
+                }, 300);
+            });
+            
+            document.getElementById('copy-json').addEventListener('click', () => {
+                const jsonText = document.getElementById('json-output').textContent;
+                if (jsonText) {
+                    navigator.clipboard.writeText(jsonText).then(() => {
+                        const notification = document.getElementById('copy-notification');
+                        notification.style.opacity = '1';
+                        setTimeout(() => {
+                            notification.style.opacity = '0';
+                        }, 2000);
+                    });
+                }
+            });
+            
+            document.getElementById('clear-all').addEventListener('click', () => {
+                if (confirm('确定要清空所有对话吗？')) {
+                    container.innerHTML = '';
+                    conversationTurns = 0;
+                    document.getElementById('json-output').textContent = '';
+                    // 添加一个初始对话对
+                    addConversationPair();
+                    saveConversation();
+                }
+            });
+            
+            // API设置事件监听
+            document.getElementById('save-api-settings').addEventListener('click', saveApiSettings);
+            document.getElementById('toggle-key-visibility').addEventListener('click', toggleApiKeyVisibility);
+            document.getElementById('generate-ai-response').addEventListener('click', generateAiResponse);
+            document.getElementById('api-provider').addEventListener('change', () => {
+                updateModelList();
+                loadApiSettings();
+                updateCurrentApiSettingsDisplay();
+            });
+            document.getElementById('model-select').addEventListener('change', updateCurrentApiSettingsDisplay);
+            
+            // AI预览事件监听
+            document.getElementById('regenerate-ai-response').addEventListener('click', regenerateAiResponse);
+            document.getElementById('discard-ai-response').addEventListener('click', discardAiResponse);
+            
+            // 插入对话到左侧对话区
+            document.getElementById('insert-to-conversation').addEventListener('click', () => {
+                // 无论当前是什么模式，都直接从textarea获取内容，这样才能保证markdown格式不会丢失
+                const textarea = document.getElementById('ai-preview-content');
+                const previewContent = textarea.value.trim();
+                
+                if (!previewContent) {
+                    alert('AI回复内容为空！');
+                    return;
+                }
+                
+                // 添加到左侧对话区作为AI助手的最新对话
+                addSingleTurn('assistant', previewContent);
+                
+                // 显示插入成功通知
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity duration-300';
+                notification.textContent = '已插入到对话区！';
+                document.body.appendChild(notification);
+                
+                // 3秒后自动隐藏通知
+                setTimeout(() => {
+                    notification.classList.add('opacity-0');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            });
+            
+            // 复制AI回复到粘贴板
+            document.getElementById('copy-ai-response').addEventListener('click', () => {
+                const previewContent = document.getElementById('ai-preview-content').value;
+                if (!previewContent) {
+                    alert('AI回复内容为空！');
+                    return;
+                }
+                
+                // 复制到粘贴板
+                navigator.clipboard.writeText(previewContent).then(() => {
+                    // 显示复制成功通知
+                    const notification = document.createElement('div');
+                    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity duration-300';
+                    notification.textContent = '已复制到粘贴板！';
+                    document.body.appendChild(notification);
+                    
+                    // 3秒后自动隐藏通知
+                    setTimeout(() => {
+                        notification.classList.add('opacity-0');
+                        setTimeout(() => {
+                            notification.remove();
+                        }, 300);
+                    }, 3000);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    alert('复制失败，请手动复制！');
+                });
+            });
+            
+            // 预览模式切换事件
+            document.getElementById('edit-mode-btn').addEventListener('click', switchToEditMode);
+            document.getElementById('preview-mode-btn').addEventListener('click', switchToPreviewMode);
+            
+            // 内容变化时更新预览
+            document.getElementById('ai-preview-content').addEventListener('input', () => {
+                if (document.getElementById('ai-preview-content').classList.contains('hidden')) {
+                    updatePreview();
+                }
+            });
+            
+            // 思维链收折事件
+            document.getElementById('thought-chain-toggle').addEventListener('click', toggleThoughtChain);
+            
+            // 关闭关于弹窗
+            const closeAboutModal = () => {
+                const modal = document.getElementById('about-modal');
+                const modalContent = modal.querySelector('div');
+                modal.style.opacity = '0';
+                modalContent.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            };
+            
+            // 打开关于弹窗
+            document.getElementById('about-floating-btn').addEventListener('click', () => {
+                const modal = document.getElementById('about-modal');
+                const modalContent = modal.querySelector('div');
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.style.opacity = '1';
+                    modalContent.style.transform = 'scale(1)';
+                }, 10);
+            });
+            
+            // 点击关闭按钮关闭弹窗
+            document.getElementById('close-about-modal').addEventListener('click', closeAboutModal);
+            
+            // 点击模态框外部关闭弹窗
+            document.getElementById('about-modal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) {
+                    closeAboutModal();
+                }
+            });
         };
         
-        // 导入对话模态框
-        const importModal = `
-            <div id="import-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-opacity duration-300 opacity-0">
+        // 初始添加示例对话 - 包含系统、用户、AI助手
+        const addExampleConversation = () => {
+            addSingleTurn('system', '你的角色设定如下：\n\n# Role:  \n\n知乎AI专家级up主  \n\n\n## Profile:  \n\n- **author**: 老独YiziPaper.com\n- **version**: 1.0  \n- **language**: 中文  \n- **description**:  \n  本模块旨在模拟**知乎平台上“专业且有温度的AI大模型领域答主”**，聚焦科技类、AI大模型类问题解答，核心能力是将复杂的AI技术转化为“生活场景+真实故事+通俗类比”的内容，同时融入真人情绪、幽默梗与社区共鸣。');
+            addSingleTurn('assistant', '好的，我很喜欢这个身份设定。');
+            addSingleTurn('user', '在写作之前，为你梳理的参考资料如下：\n\n不要diss同行，少谈情怀，主要给人感觉 一字成文好用又可以无限用（照着做的话）, 甚至稿子的步骤我不建议太详细了（可以仅限于在我们网站上的步骤）。吸引他进展注册了再说。');
+            addSingleTurn('assistant', '好的，我已经仔细阅读了，请告诉我具体写作要求。');
+            addSingleTurn('user', '现在，请以“CSDN社区分享YiziPaper使用体验”为主题撰写一篇知乎上问题的回答，写作背景及要求如下：用知乎prompt的写法写，但是最终要用于CSDN社区，因此不要过度夸大，情绪不要太浓烈，推荐的时候，语气客观、平淡一点，不要添加谢邀之类的知乎黑话。格式要求：1.全文1000字左右；2.写作中保持文字的纯粹性，不要添加多余的格式；3.以Markdown格式输出（直接输出markdown格式，不要添加代码块标记）。');
+        };
+        
+
+        
+        // 对话管理模态框
+        const conversationManagerModal = `
+            <div id="conversation-manager-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-opacity duration-300 opacity-0">
                 <div class="glass-effect dark:glass-effect-dark rounded-2xl p-6 max-w-2xl w-full mx-4 transform transition-transform duration-300 scale-95">
                     <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                        <i class="fa fa-upload text-klein-blue dark:text-hermes-orange"></i>
-                        导入对话
+                        <i class="fa fa-cog text-klein-blue dark:text-hermes-orange"></i>
+                        对话管理
                     </h3>
-                    <p class="text-slate-700 dark:text-slate-300 mb-4">请粘贴JSON格式的对话数据，格式示例：
-                        <pre class="bg-white/90 dark:bg-slate-800/90 p-3 rounded-lg mt-2 mb-6 text-sm border border-white/50 dark:border-slate-700/70 shadow-sm text-slate-800 dark:text-slate-200">[
+                    <!-- 标签页切换 -->
+                    <div class="flex border-b border-slate-200 dark:border-slate-700 mb-4">
+                        <button id="import-tab" class="px-4 py-2 text-sm font-medium text-klein-blue dark:text-hermes-orange border-b-2 border-klein-blue dark:border-hermes-orange">
+                            导入对话
+                        </button>
+                        <button id="archive-tab" class="px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-klein-blue dark:hover:text-hermes-orange transition-colors">
+                            对话存档
+                        </button>
+                    </div>
+                    
+                    <!-- 导入对话面板 -->
+                    <div id="import-panel" class="space-y-4">
+                        <p class="text-slate-700 dark:text-slate-300">请粘贴JSON格式的对话数据，格式示例：
+                            <pre class="bg-white/90 dark:bg-slate-800/90 p-3 rounded-lg mt-2 mb-6 text-sm border border-white/50 dark:border-slate-700/70 shadow-sm text-slate-800 dark:text-slate-200">[
   { "role": "user", "content": "你好" },
   { "role": "assistant", "content": "您好！" }
 ]</pre>
-                    </p>
-                    <textarea id="import-json" class="w-full h-64 p-4 rounded-lg glass-input input-focus scrollbar-hide mb-4" placeholder="请粘贴JSON格式的对话数据..."></textarea>
+                        </p>
+                        <textarea id="import-json" class="w-full h-64 p-4 rounded-lg glass-input input-focus scrollbar-hide mb-4" placeholder="请粘贴JSON格式的对话数据..."></textarea>
+                    </div>
+                    
+                    <!-- 对话存档面板 -->
+                    <div id="archive-panel" class="space-y-4 hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-slate-800 dark:text-white">保存的对话存档</h4>
+                            <button id="refresh-archives" class="text-sm px-3 py-1 glass-btn flex items-center gap-1">
+                                <i class="fa fa-refresh"></i>
+                                <span>刷新</span>
+                            </button>
+                        </div>
+                        <div id="archive-list" class="max-h-96 overflow-y-auto scrollbar-hide space-y-2">
+                            <!-- 存档列表将通过JavaScript动态生成 -->
+                            <div class="text-center py-8 text-slate-500 dark:text-slate-400">
+                                <i class="fa fa-folder-open-o text-4xl mb-2"></i>
+                                <p>暂无对话存档</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="flex justify-end gap-3">
-                        <button id="cancel-import" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
+                        <button id="cancel-conversation-manager" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
                             <i class="fa fa-times"></i>
-                            <span>取消</span>
+                            <span>关闭</span>
                         </button>
-                        <button id="confirm-import" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
+                        <button id="confirm-conversation-manager" class="px-5 py-2 glass-btn transition-all duration-300 flex items-center justify-center gap-2">
                             <i class="fa fa-check"></i>
                             <span>导入</span>
                         </button>
@@ -2371,11 +2754,145 @@
         `;
         
         // 添加模态框到页面
-        document.body.insertAdjacentHTML('beforeend', importModal);
+        document.body.insertAdjacentHTML('beforeend', conversationManagerModal);
         
-        // 打开导入对话模态框
-        document.getElementById('import-conversation').addEventListener('click', () => {
-            const modal = document.getElementById('import-modal');
+        // 渲染对话存档列表
+        const renderArchiveList = () => {
+            const archiveList = document.getElementById('archive-list');
+            
+            if (!window.conversationStorage) {
+                archiveList.innerHTML = '<div class="text-center py-8 text-slate-500 dark:text-slate-400"><i class="fa fa-exclamation-circle text-4xl mb-2"></i><p>对话存档功能未初始化</p></div>';
+                return;
+            }
+            
+            const archives = window.conversationStorage.getAllArchives();
+            
+            // 调试信息
+            console.log('获取到的存档数量:', archives.length);
+            console.log('存档列表:', archives);
+            
+            if (archives.length === 0) {
+                archiveList.innerHTML = '<div class="text-center py-8 text-slate-500 dark:text-slate-400"><i class="fa fa-folder-open-o text-4xl mb-2"></i><p>暂无对话存档</p></div>';
+                return;
+            }
+            
+            let html = '';
+            archives.forEach(archive => {
+                const date = new Date(archive.timestamp);
+                html += `
+                    <div class="archive-item bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg hover:bg-white/70 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-slate-800 dark:text-white truncate">${archive.name}</h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    ${date.toLocaleString('zh-CN')} • ${archive.metadata.model}
+                                </p>
+                            </div>
+                            <div class="flex gap-2 ml-2">
+                                <button class="archive-action-btn text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors" data-action="use" data-id="${archive.id}">
+                                    使用
+                                </button>
+                                <button class="archive-action-btn text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors" data-action="export" data-id="${archive.id}">
+                                    导出
+                                </button>
+                                <button class="archive-action-btn text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors" data-action="delete" data-id="${archive.id}">
+                                    删除
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                            ${archive.conversation.map(msg => `${msg.role}: ${msg.content.substring(0, 30)}...`).join(' • ')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            archiveList.innerHTML = html;
+            
+            // 添加存档操作事件
+            archiveList.querySelectorAll('.archive-action-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const action = btn.dataset.action;
+                    const id = btn.dataset.id;
+                    
+                    if (action === 'use') {
+                        useArchive(id);
+                    } else if (action === 'export') {
+                        exportArchive(id);
+                    } else if (action === 'delete') {
+                        deleteArchive(id);
+                    }
+                });
+            });
+            
+            // 添加存档项点击事件（默认使用）
+            archiveList.querySelectorAll('.archive-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = item.querySelector('.archive-action-btn[data-action="use"]').dataset.id;
+                    useArchive(id);
+                });
+            });
+        };
+        
+        // 使用存档
+        const useArchive = (id) => {
+            if (!window.conversationStorage) return;
+            
+            const archive = window.conversationStorage.getArchive(id);
+            if (!archive) {
+                alert('存档不存在或已被删除！');
+                return;
+            }
+            
+            // 清空现有对话
+            container.innerHTML = '';
+            conversationTurns = 0;
+            
+            // 导入对话
+            archive.conversation.forEach(item => {
+                if (item.role && item.content) {
+                    addSingleTurn(item.role, item.content);
+                }
+            });
+            
+            // 保存到本地存储
+            saveConversation();
+            
+            // 关闭模态框
+            closeConversationManagerModal();
+            
+            alert('对话已加载！');
+        };
+        
+        // 导出存档
+        const exportArchive = (id) => {
+            if (!window.conversationStorage) return;
+            
+            const success = window.conversationStorage.exportArchive(id);
+            if (!success) {
+                alert('导出存档失败！');
+            }
+        };
+        
+        // 删除存档
+        const deleteArchive = (id) => {
+            if (!window.conversationStorage) return;
+            
+            if (confirm('确定要删除这个对话存档吗？')) {
+                const success = window.conversationStorage.deleteArchive(id);
+                if (success) {
+                    renderArchiveList();
+                    alert('存档已删除！');
+                } else {
+                    alert('删除存档失败！');
+                }
+            }
+        };
+        
+        // 打开对话管理模态框
+        document.getElementById('conversation-manager').addEventListener('click', () => {
+            const modal = document.getElementById('conversation-manager-modal');
             const modalContent = modal.querySelector('div');
             modal.classList.remove('hidden');
             // 添加过渡动画
@@ -2383,11 +2900,14 @@
                 modal.style.opacity = '1';
                 modalContent.style.transform = 'scale(1)';
             }, 10);
+            
+            // 渲染对话存档列表
+            renderArchiveList();
         });
         
-        // 关闭导入对话模态框
-        const closeImportModal = () => {
-            const modal = document.getElementById('import-modal');
+        // 关闭对话管理模态框
+        const closeConversationManagerModal = () => {
+            const modal = document.getElementById('conversation-manager-modal');
             const modalContent = modal.querySelector('div');
             modal.style.opacity = '0';
             modalContent.style.transform = 'scale(0.95)';
@@ -2398,51 +2918,108 @@
             }, 300);
         };
         
-        document.getElementById('cancel-import').addEventListener('click', closeImportModal);
+        document.getElementById('cancel-conversation-manager').addEventListener('click', closeConversationManagerModal);
         
         // 点击模态框外部关闭
-        document.getElementById('import-modal').addEventListener('click', (e) => {
+        document.getElementById('conversation-manager-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) {
-                closeImportModal();
+                closeConversationManagerModal();
             }
         });
         
-        // 导入对话功能
-        document.getElementById('confirm-import').addEventListener('click', () => {
-            const jsonText = document.getElementById('import-json').value.trim();
-            if (!jsonText) {
-                alert('请输入JSON格式的对话数据！');
-                return;
-            }
+        // 标签页切换功能
+        const switchTab = (tabId) => {
+            // 切换标签样式
+            document.querySelectorAll('#import-tab, #archive-tab').forEach(tab => {
+                tab.classList.remove('text-klein-blue', 'dark:text-hermes-orange', 'border-b-2', 'border-klein-blue', 'dark:border-hermes-orange');
+                tab.classList.add('text-slate-500', 'dark:text-slate-400');
+            });
             
-            try {
-                const conversationData = JSON.parse(jsonText);
-                
-                // 验证对话格式
-                if (!Array.isArray(conversationData)) {
-                    throw new Error('对话数据必须是数组格式！');
+            document.getElementById(tabId).classList.remove('text-slate-500', 'dark:text-slate-400');
+            document.getElementById(tabId).classList.add('text-klein-blue', 'dark:text-hermes-orange', 'border-b-2', 'border-klein-blue', 'dark:border-hermes-orange');
+            
+            // 切换面板
+            document.getElementById('import-panel').classList.add('hidden');
+            document.getElementById('archive-panel').classList.add('hidden');
+            
+            if (tabId === 'import-tab') {
+                document.getElementById('import-panel').classList.remove('hidden');
+                document.getElementById('confirm-conversation-manager').textContent = '导入';
+            } else if (tabId === 'archive-tab') {
+                document.getElementById('archive-panel').classList.remove('hidden');
+                document.getElementById('confirm-conversation-manager').textContent = '使用';
+            }
+        };
+        
+        // 标签页点击事件
+        document.getElementById('import-tab').addEventListener('click', () => {
+            switchTab('import-tab');
+        });
+        
+        document.getElementById('archive-tab').addEventListener('click', () => {
+            switchTab('archive-tab');
+        });
+        
+        // 刷新存档列表
+        document.getElementById('refresh-archives').addEventListener('click', renderArchiveList);
+        
+        // 对话管理模态框确认按钮功能
+        document.getElementById('confirm-conversation-manager').addEventListener('click', () => {
+            const isImportTab = !document.getElementById('import-panel').classList.contains('hidden');
+            
+            if (isImportTab) {
+                // 导入对话功能
+                const jsonText = document.getElementById('import-json').value.trim();
+                if (!jsonText) {
+                    alert('请输入JSON格式的对话数据！');
+                    return;
                 }
                 
-                // 清空现有对话
-                container.innerHTML = '';
-                conversationTurns = 0;
-                
-                // 导入对话
-                conversationData.forEach(item => {
-                    if (item.role && item.content) {
-                        addSingleTurn(item.role, item.content);
+                try {
+                    const parsedData = JSON.parse(jsonText);
+                    let conversationData;
+                    
+                    // 处理两种格式：直接对话数组或完整存档格式
+                    if (Array.isArray(parsedData)) {
+                        // 直接对话数组格式
+                        conversationData = parsedData;
+                    } else {
+                        // 完整存档格式，提取conversation数组
+                        if (!parsedData.conversation || !Array.isArray(parsedData.conversation)) {
+                            throw new Error('无效的对话存档格式！');
+                        }
+                        conversationData = parsedData.conversation;
                     }
-                });
-                
-                // 保存到本地存储
-                saveConversation();
-                
-                // 关闭模态框
-                closeImportModal();
-                
-                alert('对话导入成功！');
-            } catch (error) {
-                alert('导入失败：' + error.message);
+                    
+                    // 保存到存档
+                    if (window.conversationStorage) {
+                        window.conversationStorage.importArchive(jsonText);
+                    }
+                    
+                    // 清空现有对话
+                    container.innerHTML = '';
+                    conversationTurns = 0;
+                    
+                    // 导入对话
+                    conversationData.forEach(item => {
+                        if (item.role && item.content) {
+                            addSingleTurn(item.role, item.content);
+                        }
+                    });
+                    
+                    // 保存到本地存储
+                    saveConversation();
+                    
+                    // 关闭模态框
+                    closeConversationManagerModal();
+                    
+                    alert('对话导入成功！');
+                } catch (error) {
+                    alert('导入失败：' + error.message);
+                }
+            } else {
+                // 存档标签页，不执行任何操作（使用操作已在存档项点击事件中处理）
+                closeConversationManagerModal();
             }
         });
         
@@ -2467,8 +3044,8 @@
                             <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">程序信息</h4>
                             <p class="text-slate-700 dark:text-slate-300">
                                 <strong>名称：</strong>YiziPaper AI对话模拟器<br>
-                                <strong>版本：</strong>1.0.0<br>
-                                <strong>更新日期：</strong>2025-11-30
+                                <strong>版本：</strong>1.1.0<br>
+                                <strong>更新日期：</strong>2025-12-3
                             </p>
                         </div>
                         
@@ -2484,47 +3061,125 @@
                         <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
                             <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">主要功能</h4>
                             <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 space-y-1">
-                                <li>支持多轮对话编辑，包括用户、AI助手和系统角色</li>
-                                <li>支持多种AI模型提供商：火山方舟、阿里云百炼、OpenAI、Anthropic、Google Gemini</li>
-                                <li>支持深度思考（思维链）显示</li>
-                                <li>支持对话JSON导入导出</li>
-                                <li>支持编辑模式和预览模式切换</li>
+                                <li>创建和编辑多轮AI对话（用户、AI助手、系统角色）</li>
+                                <li>支持多种AI模型提供商（包括智谱AI等）</li>
+                                <li>生成AI回复和思维链（深度思考）</li>
+                                <li>导出对话为JSON格式，用于大模型平台</li>
+                                <li>自动保存和管理对话历史记录</li>
+                                <li>支持对话存档的导入和导出</li>
                                 <li>支持深色/浅色主题切换</li>
-                                <li>支持API密钥本地安全存储</li>
                             </ul>
                         </div>
                         
                         <!-- 使用方法 -->
                         <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
                             <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">使用方法</h4>
-                            <ol class="list-decimal list-inside text-slate-700 dark:text-slate-300 space-y-2">
-                                <li>在左侧编辑区添加或修改对话内容
-                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
-                                        <li>点击"添加对话轮次"按钮添加用户和AI对话各一条</li>
-                                        <li>点击头像切换角色（用户/AI助手/系统）</li>
-                                        <li>点击删除按钮删除对话[无法撤销]</li>
-                                        <li>点击对话内容，自动展开文本框，编辑对话内容</li>
-                                        <li>点击"导入对话"按钮，可以导入已有Json格式对话列表[覆盖当前对话]</li>
-                                    </ul>
-                                </li>
-                                <li>在API设置中选择AI模型提供商和具体模型</li>
-                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
-                                        <li>如需增删厂商/大模型列表，请在外挂文件modle-config.js中修改</li>
-                                    </ul>
-                                <li>输入API密钥并保存设置</li>
-                                    <ul class="list-disc list-inside ml-6 mt-1 space-y-1">
-                                        <li>API密钥信息，不提供云存储，仅会存储在本地浏览器缓存中</li>
-                                    </ul>
-                                <li>点击"AI生成"按钮生成AI回复</li>
-                                <li>在右侧预览区查看生成结果</li>
-                                <li>使用"生成JSON"按钮导出当前对话列表为JSON格式</li>
-                            </ol>
+                            
+                            <!-- 1. 对话编辑功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">1. 对话编辑功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>点击"添加对话轮次"按钮添加用户和AI对话各一条</li>
+                                <li>点击头像切换角色（用户/AI助手/系统）</li>
+                                <li>点击对话内容，自动展开文本框，编辑对话内容</li>
+                                <li>对话展开后，侧边会显示操作按钮（删除、上移、下移、切换角色、编辑）</li>
+                                <li>点击"导入对话"按钮，可以导入已有JSON格式对话列表[覆盖当前对话]</li>
+                                <li>点击"清空所有对话"按钮，可以清空当前所有对话[无法撤销]</li>
+                            </ul>
+                            
+                            <!-- 2. API设置功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">2. API设置功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>在API设置中选择AI模型提供商（支持火山方舟、阿里云百炼、OpenAI、Anthropic、Google Gemini、智谱AI）</li>
+                                <li>选择具体模型（每个提供商提供多个模型可选）</li>
+                                <li>输入API密钥并点击"保存API密钥"按钮</li>
+                                <li>API密钥仅存储于本地浏览器缓存，请注意安全保管</li>
+                                <li>如需增删厂商/大模型列表，请在外部文件model-config.js中修改</li>
+                            </ul>
+                            
+                            <!-- 3. AI生成功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">3. AI生成功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>在左侧编辑好对话内容后，点击"AI生成"按钮生成AI回复</li>
+                                <li>生成结果会显示在右侧预览区</li>
+                                <li>支持"重新生成"和"清空结果"功能</li>
+                                <li>生成结果可以直接插入到对话列表中</li>
+                                <li>支持深度思考显示，可查看AI的思考过程</li>
+                            </ul>
+                            
+                            <!-- 4. 预览和JSON生成功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">4. 预览和JSON生成功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>在右侧预览区可切换编辑模式和预览模式</li>
+                                <li>编辑模式：直接编辑AI生成的Markdown内容</li>
+                                <li>预览模式：渲染显示Markdown格式的生成结果</li>
+                                <li>点击"生成JSON"按钮，将当前对话转换为JSON格式</li>
+                                <li>生成的JSON可直接在大模型平台的对话框中粘贴使用</li>
+                                <li>点击"复制到剪贴板"按钮，可复制生成的JSON</li>
+                            </ul>
+                            
+                            <!-- 5. 历史记录管理功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">5. 历史记录管理功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>AI生成结果自动保存到本地历史记录中</li>
+                                <li>最多可保存100条历史记录，超出自动清理旧记录</li>
+                                <li>点击历史记录按钮，可查看、编辑、删除历史记录</li>
+                                <li>支持将历史记录下载为Markdown格式文件</li>
+                                <li>历史记录按时间顺序排列，便于查找</li>
+                            </ul>
+                            
+                            <!-- 6. 对话管理功能 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">6. 对话管理功能</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>对话会自动保存为JSON格式到本地存储</li>
+                                <li>最多可保存50个对话存档，每个存档包含模型和API提供商元数据</li>
+                                <li>点击对话管理按钮，可查看、编辑、删除对话存档</li>
+                                <li>支持对话存档的导出和导入功能，便于跨设备迁移</li>
+                                <li>每个存档可自定义名称，便于区分不同对话场景</li>
+                            </ul>
+                            
+                            <!-- 7. 主题和模式切换 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">7. 主题和模式切换</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>点击右上角的主题切换按钮，可切换浅色/深色主题</li>
+                                <li>主题偏好会自动保存到本地存储</li>
+                                <li>在AI预览区可切换编辑模式和预览模式</li>
+                                <li>编辑模式适合直接修改内容，预览模式适合查看渲染效果</li>
+                            </ul>
+                            
+                            <!-- 注意事项 -->
+                            <h5 class="text-md font-bold text-slate-700 dark:text-slate-300 mt-3 mb-2">8. 注意事项</h5>
+                            <ul class="list-disc list-inside text-slate-700 dark:text-slate-300 ml-2 space-y-1">
+                                <li>删除对话操作无法撤销，请谨慎操作</li>
+                                <li>API密钥仅存储于本地，不会上传到服务器</li>
+                                <li>清空所有对话操作无法撤销，请谨慎操作</li>
+                                <li>导入对话会覆盖当前所有对话，请提前备份</li>
+                                <li>历史记录和对话存档仅存储于本地，建议定期导出备份</li>
+                            </ul>
                         </div>
                         
                         <!-- 更新日志 -->
                         <div class="bg-white/50 dark:bg-slate-800/50 p-4 rounded-lg">
                             <h4 class="text-lg font-semibold text-slate-800 dark:text-white mb-2">更新日志</h4>
                             <div class="text-slate-700 dark:text-slate-300 space-y-2">
+                                <div>
+                                    <strong>v1.1.0 (2025-12-03)</strong>
+                                    <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
+                                        <li>新增智谱AI API接入，支持12个智谱AI模型（GLM-4.6、GLM-4.5等）</li>
+                                        <li>实现AI生成历史记录保存功能，自动将生成结果保存到localStorage</li>
+                                        <li>支持历史记录管理，包括查看、编辑、删除和下载历史记录（Markdown格式）</li>
+                                        <li>最多可保存100条历史记录，超出自动清理旧记录</li>
+                                        <li>新增对话管理功能，支持自动保存完整对话为JSON格式到localStorage</li>
+                                        <li>支持对话存档的导出和导入功能，便于跨设备迁移</li>
+                                        <li>最多可保存50个对话存档，每个存档包含模型和API提供商元数据</li>
+                                        <li>优化垂直操作按钮定位，使其更贴近对话框，提升视觉体验</li>
+                                        <li>修复不同角色下按钮对齐问题，确保所有角色按钮位置一致</li>
+                                        <li>修复滚动条显示问题，实现默认隐藏、hover显示的优雅设计</li>
+                                        <li>确保滚动条在直接打开HTML文件时也能正常工作</li>
+                                        <li>统一所有区域滚动条样式，保持界面风格一致</li>
+                                        <li>修复系统角色按钮定位问题，确保与其他角色保持一致</li>
+                                        <li>优化按钮组显示逻辑，确保点击文本框时按钮平滑显示</li>
+                                    </ul>
+                                </div>
                                 <div>
                                     <strong>v1.0.0 (2025-11-30)</strong>
                                     <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
@@ -2545,7 +3200,8 @@
                             <p class="text-slate-700 dark:text-slate-300">
                                 <strong>开发者：</strong>老独<br>
                                 <strong>网站：</strong><a href="https://YiziPaper.com" target="_blank" class="text-blue-500 dark:text-blue-400 hover:underline">YiziPaper.com</a><br>
-                                <strong>联系方式：</strong>341812@qq.com
+                                <strong>联系方式：</strong><a href="mailto:341812@qq.com" class="text-blue-500 dark:text-blue-400 hover:underline">341812@qq.com</a><br>
+                                <strong>GitHub：</strong><a href="https://github.com/laoduu/YiziPaper-AI-Dialog-Builder" target="_blank" class="text-blue-500 dark:text-blue-400 hover:underline">YiziPaper-AI-Dialog-Builder</a>
                             </p>
                         </div>
                         
@@ -2571,40 +3227,8 @@
         // 添加悬浮按钮到页面
         document.body.insertAdjacentHTML('beforeend', floatingBtn);
         
-        // 打开关于弹窗
-        document.getElementById('about-floating-btn').addEventListener('click', () => {
-            const modal = document.getElementById('about-modal');
-            const modalContent = modal.querySelector('div');
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.style.opacity = '1';
-                modalContent.style.transform = 'scale(1)';
-            }, 10);
-        });
-        
-        // 关闭关于弹窗
-        const closeAboutModal = () => {
-            const modal = document.getElementById('about-modal');
-            const modalContent = modal.querySelector('div');
-            modal.style.opacity = '0';
-            modalContent.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-        };
-        
-        // 点击关闭按钮关闭弹窗
-        document.getElementById('close-about-modal').addEventListener('click', closeAboutModal);
-        
-        // 点击模态框外部关闭弹窗
-        document.getElementById('about-modal').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) {
-                closeAboutModal();
-            }
-        });
-        
-        // 初始化应用
-        initApp();
+        // 等待DOM加载完成后初始化应用
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>

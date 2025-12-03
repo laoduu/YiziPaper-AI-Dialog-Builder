@@ -39,6 +39,20 @@ window.appConfig = {
         google: [
             { name: 'gemini-1.5-pro', value: 'gemini-1.5-pro' },
             { name: 'gemini-1.5-flash', value: 'gemini-1.5-flash' }
+        ],
+        zhipu: [
+            { name: 'GLM-4.6', value: 'glm-4.6' },
+            { name: 'GLM-4.5', value: 'glm-4.5' },
+            { name: 'GLM-4.5-X', value: 'glm-4.5-x' },
+            { name: 'GLM-4.5-Air', value: 'glm-4.5-air' },
+            { name: 'GLM-4.5-AirX', value: 'glm-4.5-airx' },
+            { name: 'GLM-4-Plus', value: 'glm-4-plus' },
+            { name: 'GLM-4-Air-250414', value: 'glm-4-air-250414' },
+            { name: 'GLM-4-Long', value: 'glm-4-long' },
+            { name: 'GLM-4-AirX', value: 'glm-4-airx' },
+            { name: 'GLM-4-FlashX-250414', value: 'glm-4-flashx-250414' },
+            { name: 'GLM-4.5-Flash', value: 'glm-4.5-flash' },
+            { name: 'GLM-4-Flash-250414', value: 'glm-4-flash-250414' }
         ]
     },
     requestConfigs: {
@@ -114,6 +128,20 @@ window.appConfig = {
                     'temperature': 0.7,
                     'maxOutputTokens': 4096
                 },
+                'stream': true
+            }
+        },
+        zhipu: {
+            endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer {{apiKey}}'
+            },
+            body: {
+                'model': '{{model}}',
+                'messages': '{{messages}}',
+                'temperature': 0.7,
+                'max_tokens': 4096,
                 'stream': true
             }
         }
